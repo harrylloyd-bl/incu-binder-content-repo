@@ -2,10 +2,10 @@
 /data/*/
 
 # nb checkpoints
-*.ipynb_checkpoints/
+.ipynb_checkpoints/
 
 # vs code
-/.vscode
+.vscode/
 
 # pycharm
-/.idea
+.idea/
