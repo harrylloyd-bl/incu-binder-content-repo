@@ -2,7 +2,7 @@
 /data/*/
 
 # nb checkpoints
-*.ipynb_checkpoint
+*.ipynb_checkpoints/
 
 # vs code
 /.vscode
