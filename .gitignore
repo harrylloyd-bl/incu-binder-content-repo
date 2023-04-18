@@ -1,0 +1,11 @@
+# data
+/data/*/
+
+# nb checkpoints
+*.ipynb_checkpoint
+
+# vs code
+/.vscode
+
+# pycharm
+/.idea
