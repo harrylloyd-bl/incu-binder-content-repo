@@ -1,10 +1,10 @@
-import re
-import numpy as np
-import shutil
 import os
+import shutil
+import re
 from xml.dom import minidom
-import sys
 from langdetect import detect
+import numpy as np
+from tqdm import tqdm
 
 
 # Extracts all lines for given xmltree
@@ -31,7 +31,7 @@ def extractLines(root):
 # Extracts lines for a collection of xmltrees
 def extractLinesForVol(vol):
     allLines = []
-    for root in vol:
+    for root in tqdm(vol):
         rootLines = extractLines(root)
         allLines += rootLines
     return allLines
@@ -162,13 +162,12 @@ def generateXML(allTitleIndices, allLines):
 
 
 # Saves the generated XML for the headings into a chosen location
-def saveXML(allTitleIndices, allLines):
-    path = sys.argv[2] + "/generated"
-    if (not os.path.exists(path)):
-        os.makedirs(path)
+def saveXML(allTitleIndices, allLines, out_path):
+    if not os.path.exists(out_path):
+        os.makedirs(out_path)
     xml = generateXML(allTitleIndices, allLines)
     xml_str = xml.toprettyxml(indent="\t")
-    save_path_file = path + "/headings.xml"
+    save_path_file = out_path + "/headings.xml"
     with open(save_path_file, "w", encoding="utf-8") as f:
         f.write(xml_str)
         f.close()
@@ -176,18 +175,17 @@ def saveXML(allTitleIndices, allLines):
 
 
 # Saves all of the text, split by chapters, into text files
-def saveRawTxt(allTitleIndices, allLines):
-    path = sys.argv[2] + "/generated/rawtextfiles"
-    if (not os.path.exists(path)):
-        os.makedirs(path)
+def saveRawTxt(allTitleIndices, allLines, out_path):
+    if not os.path.exists(out_path):
+        os.makedirs(out_path)
 
-    for itr in range(len(allTitleIndices[:-1])):
+    for itr in tqdm(range(len(allTitleIndices[:-1]))):
         titleIndices = allTitleIndices[itr]
         catalogueIndices = [x for x in range(titleIndices[1], allTitleIndices[itr + 1][0])]
         fullTitle = "".join([allLines[x] for x in titleIndices])
         titleRef = findTitleRef(fullTitle)
 
-        save_path_file = path + "/" + titleRef.replace(".", "-") + ".txt"
+        save_path_file = out_path + "/" + titleRef.replace(".", "-") + ".txt"
         with open(save_path_file, "w", encoding="utf-8") as f:
             f.write(fullTitle + "\n")
             for lineIndex in catalogueIndices:
@@ -236,16 +234,15 @@ def splitByLanguage(lines):
             currentBlock.append(lines[ind])
     currentBlock.append(lines[-1])
     splitLines.append(currentBlock)
-    return (firstLanguage, splitLines)
+    return firstLanguage, splitLines
 
 
 # Saves all of the text, split by chapters into text files where non-english sections of text are removed
-def saveSplitTxt(allTitleIndices, allLines):
-    path = sys.argv[2] + "/generated/splittextfiles"
-    if (not os.path.exists(path)):
-        os.makedirs(path)
+def saveSplitTxt(allTitleIndices, allLines, out_path):
+    if not os.path.exists(out_path):
+        os.makedirs(out_path)
 
-    for itr in range(len(allTitleIndices[:-1])):
+    for itr in tqdm(range(len(allTitleIndices[:-1]))):
         titleIndices = allTitleIndices[itr]
         catalogueIndices = [x for x in range(titleIndices[1], allTitleIndices[itr + 1][0])]
         fullTitle = "".join([allLines[x] for x in titleIndices])
@@ -254,12 +251,12 @@ def saveSplitTxt(allTitleIndices, allLines):
         catalogueLines = [allLines[x] for x in catalogueIndices]
         firstLanguage, splitCatalogueLines = splitByLanguage(catalogueLines)
 
-        save_path_file = path + "/" + titleRef.replace(".", "-") + ".txt"
+        save_path_file = out_path + "/" + titleRef.replace(".", "-") + ".txt"
         with open(save_path_file, "w", encoding="utf-8") as f:
             f.write(fullTitle + "\n")
             languageEn = firstLanguage
             for blockLines in splitCatalogueLines:
-                if (languageEn):
+                if languageEn:
                     # f.write("##########ENGLISH SECTION##########\n")
                     for line in blockLines:
                         f.write(line + "\n")
@@ -273,7 +270,7 @@ def saveSplitTxt(allTitleIndices, allLines):
 
 # Returns the number of lines in a page which are too long
 def numOutliersForPage(lines, std, mean, threshold=2):
-    lengths = [len(x.split()) for x in lines if x != None]
+    lengths = [len(x.split()) for x in lines if x is not None]
     lengths = [(x - mean) for x in lengths]
     lengths = [(x / std) for x in lengths]
     numOutliers = len([x for x in lengths if x > threshold])
@@ -286,7 +283,7 @@ def getPoorlyScannedPages(volumeRoot, fileNames):
 
     # Get all the lines for the volume and find the mean and std for the line lengths across all volumes
     volLines = extractLinesForVol(volumeRoot)
-    lengths = [len(x.split()) for x in volLines if x != None]
+    lengths = [len(x.split()) for x in volLines if x is not None]
     mean = np.mean(lengths)
     std = np.std(lengths)
 
@@ -295,17 +292,16 @@ def getPoorlyScannedPages(volumeRoot, fileNames):
         page = volumeRoot[x]
         pageLines = extractLines(page)
         numOutliers = numOutliersForPage(pageLines, std, mean)
-        if (numOutliers > 5):
+        if numOutliers > 5:
             poorlyScannedPageNums.append(fileNames[x].decode("utf-8"))
     return poorlyScannedPageNums
 
 
 # Save poorly scanned page numbers to a text file
-def savePoorlyScannedPages(poorlyScanned):
-    path = sys.argv[2] + "/generated"
-    if (not os.path.exists(path)):
-        os.makedirs(path)
-    save_path_file = path + "/" + "poorlyscanned.txt"
+def savePoorlyScannedPages(poorlyScanned, out_path):
+    if not os.path.exists(out_path):
+        os.makedirs(out_path)
+    save_path_file = os.path.join(out_path, "poorlyscanned.txt")
     with open(save_path_file, "w", encoding="utf-8") as f:
         for scan in poorlyScanned:
             f.write(scan + "\n")
@@ -314,12 +310,14 @@ def savePoorlyScannedPages(poorlyScanned):
 
 # Saves the raw text files, the text files split by language and the XML files
 def saveAll(currentVolume, directory, allTitleIndices, allLines, path):
-    path = os.path.join(path, "generated")
-    if not os.path.exists(path):
-        os.makedirs(path)
+    out_path = os.path.join(path, "generated")
+    if not os.path.exists(out_path):
+        os.makedirs(out_path)
 
-    savePoorlyScannedPages(getPoorlyScannedPages(currentVolume, os.listdir(directory)))
-    saveRawTxt(allTitleIndices, allLines)
-    saveSplitTxt(allTitleIndices, allLines)
-    saveXML(allTitleIndices, allLines)
-    shutil.make_archive(path, 'zip', path)
+    savePoorlyScannedPages(getPoorlyScannedPages(currentVolume, os.listdir(directory)), out_path)
+    print("Saving raw txt files")
+    saveRawTxt(allTitleIndices, allLines, os.path.join(out_path, "rawtextfiles"))
+    print("Saving split txt files")
+    saveSplitTxt(allTitleIndices, allLines, os.path.join(out_path, "splittextfiles"))
+    saveXML(allTitleIndices, allLines, out_path)
+    shutil.make_archive(out_path, 'zip', out_path)
