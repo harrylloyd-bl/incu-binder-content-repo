@@ -72,8 +72,17 @@ def test_findHeadings(xml_roots):
     title_xml = ET.parse("tests\\title_xml_example.xml")
     title_root = title_xml.getroot()
 
+    """"
+    title_xml/title_root contains three IA. numbers that could start titles
+    The second IA. (IA. 456) has its title interrupted by IA. 789 before a date is found
+    This tests the 
+    `if checkLine(titlePart):
+    `    break
+    section of findHeadings 
+    """
     allLines_with_title = xmle.extractLines(title_root)
     title, allTitleIndices = xmle.findHeadings(allLines_with_title)
-    assert len(title), len(allTitleIndices) == (1, 3)
-    assert title == ["IA. 123TITLE1456"]
-    assert allTitleIndices == [[0, 1, 2]]
+    assert len(title), len(allTitleIndices) == (2, 2)
+    assert title == ["IA. 123TITLE1456", "IA. 789SECONDTITLE1506"]
+    assert allTitleIndices == [[0, 1, 2], [6, 7, 8]]
+
