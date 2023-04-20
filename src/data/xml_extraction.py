@@ -1,6 +1,7 @@
 import os
 import shutil
 import re
+import xml
 from xml.dom import minidom
 from langdetect import detect
 import numpy as np
@@ -8,7 +9,7 @@ from tqdm import tqdm
 
 
 # Extracts all lines for given xmltree
-def extractLines(root):
+def extractLines(root: xml.etree.ElementTree.Element):
     lines = []
 
     textRegions = [x for x in root[1] if len(x) > 2]  # Empty Text Regions Removed
@@ -29,7 +30,7 @@ def extractLines(root):
 
 
 # Extracts lines for a collection of xmltrees
-def extractLinesForVol(vol):
+def extractLinesForVol(vol: list[xml.etree.ElementTree.Element]):
     allLines = []
     for root in tqdm(vol):
         rootLines = extractLines(root)
@@ -38,27 +39,27 @@ def extractLinesForVol(vol):
 
 
 # Regular expressions used in the detection og headings
-cregexp = re.compile("C\.[0-9]")  # C number title references
-capsregex = re.compile("[A-Z][A-Z][A-Z]+")
-indexregex = re.compile("I[ABC]\.\s[0-9]")  # I number title references
-dateregex = re.compile("1[45][0-9][0-9]")  # Date format regexes (specific to this volume)
+caps_regex = re.compile("[A-Z][A-Z][A-Z]+")
+c_num_regex = re.compile("C\.[0-9]")  # C number title references
+i_num_regex = re.compile("I[ABC]\.\s[0-9]")  # I number title references
+date_regex = re.compile("1[45][0-9][0-9]")  # Date format regexes (specific to this volume)
 
 
 # Looks for identifying marks of a catalogue heading beginning
-def checkLine(line):
+def checkLine(line: str):
     if line is not None:
-        return indexregex.search(line) or cregexp.search(line)
+        return i_num_regex.search(line) or c_num_regex.search(line)
     else:
         return False
 
 
 # Looks for identifying marks of a catalogue heading ending
-def dateCheck(titlePart):
-    return dateregex.search(titlePart) or "Undated" in titlePart
+def dateCheck(titlePart: str):
+    return date_regex.search(titlePart) or "Undated" in titlePart
 
 
 # NOT USED RIGHT NOW
-def getInitTitle(lines):
+def getInitTitle(lines: list[str]):
     output = ""
     title = False
     for line in lines[:5]:
@@ -66,14 +67,14 @@ def getInitTitle(lines):
         if dateCheck(line):
             title = True
             break
-    if title and len(capsregex.findall(output)) > 0:
+    if title and len(caps_regex.findall(output)) > 0:
         return output
     else:
-        return " ".join(capsregex.findall("".join(lines[:5])))
+        return " ".join(caps_regex.findall("".join(lines[:5])))
 
 
 # Finds all headings from a list of lines
-def findHeadings(allLines):
+def findHeadings(allLines: list[str]):
     titles = []  # The names of the titles
     index = -1
     allTitleIndices = []
@@ -98,7 +99,7 @@ def findHeadings(allLines):
                         endFound = True
                         break
 
-                if endFound and len(capsregex.findall(output)) > 0:  # Title has to contain all uppercase words
+                if endFound and len(caps_regex.findall(output)) > 0:  # Title has to contain all uppercase words
                     titles.append(output)
                     allTitleIndices.append(titleIndices)
 
@@ -108,7 +109,7 @@ def findHeadings(allLines):
 
 
 # Extracts the title reference number from a line for I numbers (e.g. IB929)
-def getINumTitle(fullTitle):
+def getINumTitle(fullTitle: str):
     if fullTitle[:14].count(".") >= 2:
         return ".".join(fullTitle.split(".")[:2])
     else:
@@ -116,7 +117,7 @@ def getINumTitle(fullTitle):
 
 
 # Extracts the title reference number from a line for C numbers (only found in 1 volume)
-def getCNumTitle(fullTitle):
+def getCNumTitle(fullTitle: str):
     if fullTitle[:14].count(".") >= 4:
         return ".".join(fullTitle.split(".")[:4])
     else:
@@ -124,30 +125,43 @@ def getCNumTitle(fullTitle):
 
 
 # Finds the associated title reference from a given line
-def findTitleRef(fullTitle):
-    if indexregex.search(fullTitle) is not None:
-        ref = getINumTitle(fullTitle[indexregex.search(fullTitle).start():])
+def findTitleRef(fullTitle: str):
+    if i_num_regex.search(fullTitle) is not None:
+        ref = getINumTitle(fullTitle[i_num_regex.search(fullTitle).start():])
         return ref.replace("/", ".")
-    elif cregexp.search(fullTitle) is not None:
-        ref = getCNumTitle(fullTitle[cregexp.search(fullTitle).start():])
+    elif c_num_regex.search(fullTitle) is not None:
+        ref = getCNumTitle(fullTitle[c_num_regex.search(fullTitle).start():])
         return ref.replace("/", ".")
     else:
         print("Unrecognized title format")
 
 
+def genTitleRefs(allTitleIndices: list[list[int]], allLines: list[str]):
+
+    titleRefs = []
+
+    for itr in range(len(allTitleIndices[:-1])):
+        titleIndices = allTitleIndices[itr]
+        fullTitle = "".join([allLines[x] for x in titleIndices])
+        titleRef = findTitleRef(fullTitle)
+        titleRefs.append(titleRef)
+
+    return titleRefs
+
+
 # Generates an XML document based on the found catalogue headings in the document
-def generateXML(allTitleIndices, allLines):
+def generateXML(allTitleIndices: list[list[int]], allLines: list[str], titleRefs):
     xml = minidom.Document()
     text = xml.createElement('text')
 
-    for itr in range(len(allTitleIndices[:-1])):
+    for itr in range(len(allTitleIndices[:-2])):
         titleIndices = allTitleIndices[itr]
         catalogueIndices = [x for x in range(titleIndices[-1], allTitleIndices[itr + 1][0])]
         fullTitle = "".join([allLines[x] for x in titleIndices])
         titleRef = findTitleRef(fullTitle)
 
         chapter = xml.createElement('chapter')
-        chapter.setAttribute("REFERENCE", titleRef)
+        chapter.setAttribute("REFERENCE", titleRefs[itr + 1])
         chapter.setAttribute("HEADING", fullTitle)
 
         for catalogueIndex in catalogueIndices:
@@ -162,10 +176,10 @@ def generateXML(allTitleIndices, allLines):
 
 
 # Saves the generated XML for the headings into a chosen location
-def saveXML(allTitleIndices, allLines, out_path):
+def saveXML(allTitleIndices, allLines, out_path, titleRefs):
     if not os.path.exists(out_path):
         os.makedirs(out_path)
-    xml = generateXML(allTitleIndices, allLines)
+    xml = generateXML(allTitleIndices, allLines, titleRefs)
     xml_str = xml.toprettyxml(indent="\t")
     save_path_file = out_path + "/headings.xml"
     with open(save_path_file, "w", encoding="utf-8") as f:
@@ -175,19 +189,19 @@ def saveXML(allTitleIndices, allLines, out_path):
 
 
 # Saves all of the text, split by chapters, into text files
-def saveRawTxt(allTitleIndices, allLines, out_path):
+def saveRawTxt(allTitleIndices, allLines, out_path, titleRefs):
     if not os.path.exists(out_path):
         os.makedirs(out_path)
 
-    for itr in tqdm(range(len(allTitleIndices[:-1]))):
+    for itr in tqdm(range(len(allTitleIndices[:-2]))):
         titleIndices = allTitleIndices[itr]
         catalogueIndices = [x for x in range(titleIndices[1], allTitleIndices[itr + 1][0])]
         fullTitle = "".join([allLines[x] for x in titleIndices])
         titleRef = findTitleRef(fullTitle)
 
-        save_path_file = out_path + "/" + titleRef.replace(".", "-") + ".txt"
+        save_path_file = os.path.join(out_path, titleRefs[itr + 1].replace(".", "-") + ".txt")
         with open(save_path_file, "w", encoding="utf-8") as f:
-            f.write(fullTitle + "\n")
+            # f.write(fullTitle + "\n")
             for lineIndex in catalogueIndices:
                 f.write(allLines[lineIndex] + "\n")
         # shutil.make_archive(path, 'zip', path)
@@ -238,11 +252,11 @@ def splitByLanguage(lines):
 
 
 # Saves all of the text, split by chapters into text files where non-english sections of text are removed
-def saveSplitTxt(allTitleIndices, allLines, out_path):
+def saveSplitTxt(allTitleIndices, allLines, out_path, titleRefs):
     if not os.path.exists(out_path):
         os.makedirs(out_path)
 
-    for itr in tqdm(range(len(allTitleIndices[:-1]))):
+    for itr in tqdm(range(len(allTitleIndices[:-2]))):
         titleIndices = allTitleIndices[itr]
         catalogueIndices = [x for x in range(titleIndices[1], allTitleIndices[itr + 1][0])]
         fullTitle = "".join([allLines[x] for x in titleIndices])
@@ -251,7 +265,7 @@ def saveSplitTxt(allTitleIndices, allLines, out_path):
         catalogueLines = [allLines[x] for x in catalogueIndices]
         firstLanguage, splitCatalogueLines = splitByLanguage(catalogueLines)
 
-        save_path_file = out_path + "/" + titleRef.replace(".", "-") + ".txt"
+        save_path_file = os.path.join(out_path, titleRefs[itr + 1].replace(".", "-") + ".txt")
         with open(save_path_file, "w", encoding="utf-8") as f:
             f.write(fullTitle + "\n")
             languageEn = firstLanguage
@@ -309,15 +323,16 @@ def savePoorlyScannedPages(poorlyScanned, out_path):
 
 
 # Saves the raw text files, the text files split by language and the XML files
-def saveAll(currentVolume, directory, allTitleIndices, allLines, path):
-    out_path = os.path.join(path, "generated")
+def saveAll(currentVolume, directory, allTitleIndices, allLines, path, titleRefs):
+    # out_path = os.path.join(path, "generated")  # if you do want them to go into a sub_folder of the output loc
+    out_path = path
     if not os.path.exists(out_path):
         os.makedirs(out_path)
 
     savePoorlyScannedPages(getPoorlyScannedPages(currentVolume, os.listdir(directory)), out_path)
     print("Saving raw txt files")
-    saveRawTxt(allTitleIndices, allLines, os.path.join(out_path, "rawtextfiles"))
+    saveRawTxt(allTitleIndices, allLines, os.path.join(out_path, "rawtextfiles"), titleRefs)
     print("Saving split txt files")
-    saveSplitTxt(allTitleIndices, allLines, os.path.join(out_path, "splittextfiles"))
-    saveXML(allTitleIndices, allLines, out_path)
-    shutil.make_archive(out_path, 'zip', out_path)
+    saveSplitTxt(allTitleIndices, allLines, os.path.join(out_path, "splittextfiles"), titleRefs)
+    saveXML(allTitleIndices, allLines, out_path, titleRefs)
+    # shutil.make_archive(out_path, 'zip', out_path)

@@ -22,6 +22,7 @@ if __name__ == '__main__':
     allLines = xmle.extractLinesForVol(currentVolume)
     allLines = [line for line in allLines if line is not None]
     titles, allTitleIndices = xmle.findHeadings(allLines)
+    titleRefs = xmle.genTitleRefs(allTitleIndices, allLines)
 
     print(f"\nSaving catalogue entries to {out_path}\n")
     xmle.saveAll(
@@ -29,7 +30,8 @@ if __name__ == '__main__':
         directory=directory,
         allTitleIndices=allTitleIndices,
         allLines=allLines,
-        path=out_path
+        path=out_path,
+        titleRefs=titleRefs
     )
 
     # savePoorlyScannedPages(getPoorlyScannedPages(currentVolume, os.listdir(directory)))
