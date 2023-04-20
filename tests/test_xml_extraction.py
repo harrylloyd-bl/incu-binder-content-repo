@@ -2,6 +2,11 @@ import src.data.xml_extraction as xmle
 from xml.etree import ElementTree as ET
 import glob
 import pytest
+from tqdm import tqdm
+from functools import partialmethod
+
+tqdm.__init__ = partialmethod(tqdm.__init__, disable=True)
+
 
 @pytest.fixture()
 def xml_roots():
@@ -59,3 +64,16 @@ def test_dateCheck():
 
 def test_findHeadings(xml_roots):
     allLines = xmle.extractLinesForVol(xml_roots)
+    no_title, no_allTitleIndices = xmle.findHeadings(allLines)
+    # should both be empty
+    assert not no_title
+    assert not no_allTitleIndices
+
+    title_xml = ET.parse("tests\\title_xml_example.xml")
+    title_root = title_xml.getroot()
+
+    allLines_with_title = xmle.extractLines(title_root)
+    title, allTitleIndices = xmle.findHeadings(allLines_with_title)
+    assert len(title), len(allTitleIndices) == (1, 3)
+    assert title == ["IA. 123TITLE1456"]
+    assert allTitleIndices == [[0, 1, 2]]
