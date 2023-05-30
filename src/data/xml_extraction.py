@@ -3,8 +3,9 @@ import shutil
 import re
 import xml
 from xml.dom import minidom
-from langdetect import detect
 import numpy as np
+import pandas as pd
+from langdetect import detect
 from tqdm import tqdm
 
 
@@ -30,12 +31,20 @@ def extractLines(root: xml.etree.ElementTree.Element):
 
 
 # Extracts lines for a collection of xmltrees
-def extractLinesForVol(vol: list[xml.etree.ElementTree.Element]):
+def extractLinesForVol(vol: dict[str: xml.etree.ElementTree.Element]):
     allLines = []
-    for root in tqdm(vol):
+    xml_idx = []
+    for xml, root in tqdm(vol.items()):
         rootLines = extractLines(root)
         allLines += rootLines
-    return allLines
+        xml_idx += [xml] * len(rootLines)
+    xml_track_df = pd.DataFrame(
+        data={
+            "xml": xml_idx,
+            "line": allLines
+        }
+    )
+    return allLines, xml_track_df
 
 
 # Regular expressions used in the detection og headings
@@ -189,7 +198,7 @@ def saveXML(allTitleIndices, allLines, out_path, titleRefs):
 
 
 # Saves all of the text, split by chapters, into text files
-def saveRawTxt(allTitleIndices, allLines, out_path, titleRefs):
+def saveRawTxt(allTitleIndices, allLines, xml_track_df, out_path, titleRefs):
     if not os.path.exists(out_path):
         os.makedirs(out_path)
 
@@ -199,7 +208,9 @@ def saveRawTxt(allTitleIndices, allLines, out_path, titleRefs):
         fullTitle = "".join([allLines[x] for x in titleIndices])
         titleRef = findTitleRef(fullTitle)
 
-        save_path_file = os.path.join(out_path, titleRefs[itr + 1].replace(".", "-") + ".txt")
+        xml = xml_track_df.loc[titleIndices[1], "xml"]
+        clean_shelfmark = titleRefs[itr + 1].replace(".", "_").replace(" ", "")
+        save_path_file = os.path.join(out_path, f"{xml[:-4]}_{clean_shelfmark}.txt")
         with open(save_path_file, "w", encoding="utf-8") as f:
             # f.write(fullTitle + "\n")
             for lineIndex in catalogueIndices:
@@ -296,18 +307,18 @@ def getPoorlyScannedPages(volumeRoot, fileNames):
     poorlyScannedPageNums = []
 
     # Get all the lines for the volume and find the mean and std for the line lengths across all volumes
-    volLines = extractLinesForVol(volumeRoot)
+    volLines, xml_check_df = extractLinesForVol(volumeRoot)
     lengths = [len(x.split()) for x in volLines if x is not None]
     mean = np.mean(lengths)
     std = np.std(lengths)
 
     # For every page (xmlroot) in the volume
-    for x in range(len(volumeRoot)):
-        page = volumeRoot[x]
+    for root, filename in zip(volumeRoot.values(), fileNames):
+        page = root
         pageLines = extractLines(page)
         numOutliers = numOutliersForPage(pageLines, std, mean)
         if numOutliers > 5:
-            poorlyScannedPageNums.append(fileNames[x].decode("utf-8"))
+            poorlyScannedPageNums.append(filename.decode("utf-8"))
     return poorlyScannedPageNums
 
 
@@ -323,15 +334,15 @@ def savePoorlyScannedPages(poorlyScanned, out_path):
 
 
 # Saves the raw text files, the text files split by language and the XML files
-def saveAll(currentVolume, directory, allTitleIndices, allLines, path, titleRefs):
+def saveAll(currentVolume, xmls, xml_track_df, allTitleIndices, allLines, path, titleRefs):
     # out_path = os.path.join(path, "generated")  # if you do want them to go into a sub_folder of the output loc
     out_path = path
     if not os.path.exists(out_path):
         os.makedirs(out_path)
 
-    savePoorlyScannedPages(getPoorlyScannedPages(currentVolume, os.listdir(directory)), out_path)
+    savePoorlyScannedPages(getPoorlyScannedPages(currentVolume, xmls), out_path)
     print("Saving raw txt files")
-    saveRawTxt(allTitleIndices, allLines, os.path.join(out_path, "rawtextfiles"), titleRefs)
+    saveRawTxt(allTitleIndices, allLines, xml_track_df, os.path.join(out_path, "rawtextfiles"), titleRefs)
     print("Saving split txt files")
     saveSplitTxt(allTitleIndices, allLines, os.path.join(out_path, "splittextfiles"), titleRefs)
     saveXML(allTitleIndices, allLines, out_path, titleRefs)
