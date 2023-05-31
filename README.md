@@ -2,7 +2,7 @@
 
 This is the Hack N' Yack branch of the Incunabula Catalogue Entry Detection, with data and notebooks for interactive use in the July 2023 Hack N' Yack session. To launch binder to use the notebook click the link below!
 
-[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/britishlibrary/Incunabula-Catalogue-Entry-Detection/hny)
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/britishlibrary/Incunabula-Catalogue-Entry-Detection/hny/master?urlpath=git-pull?repo=https://github.com/britishlibrary/Incunabula-Catalogue-Entry-Detection/tree/hny-content)
 
 This project investigates and implements different methods for detecting catalogue entries within printed catalogues. While printed catalogues are easy enough to digitise and convert into machine readable data, dividing that data by catalogue entry requires converting visual signifiers of divisions between entries - gaps in the printed page, large or upper-case headers, catalogue references - into machine-readable information.
 
