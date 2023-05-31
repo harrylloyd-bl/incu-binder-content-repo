@@ -8,6 +8,7 @@ dependencies:
   - ca-certificates
   - openssl
   - pandas
+  - nbgitpuller
   - pip:
       - langdetect
 prefix: C:\Users\HLloyd\AppData\Local\mambaforge\envs\incu
