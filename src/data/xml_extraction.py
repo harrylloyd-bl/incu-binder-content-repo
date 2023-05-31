@@ -1,5 +1,4 @@
 import os
-import shutil
 import re
 import xml
 from xml.dom import minidom
@@ -112,8 +111,6 @@ def find_headings(all_lines: list[str]):
                     titles.append(output)
                     all_title_indices.append(title_indices)
 
-    #  if (len(getInitTitle(allLines)) > 0):
-    #    titles = [getInitTitle(allLines)] + titles
     return titles, all_title_indices
 
 
@@ -152,8 +149,8 @@ def gen_title_refs(all_title_indices: list[list[int]], all_lines: list[str]):
     for itr in range(len(all_title_indices[:-1])):
         title_indices = all_title_indices[itr]
         full_title = "".join([all_lines[x] for x in title_indices])
-        titleRef = find_title_ref(full_title)
-        title_refs.append(titleRef)
+        title_ref = find_title_ref(full_title)
+        title_refs.append(title_ref)
 
     return title_refs
 
@@ -167,7 +164,6 @@ def generate_xml(all_title_indices: list[list[int]], all_lines: list[str], title
         title_indices = all_title_indices[itr]
         catalogue_indices = [x for x in range(title_indices[-1], all_title_indices[itr + 1][0])]
         full_title = "".join([all_lines[x] for x in title_indices])
-        title_ref = find_title_ref(full_title)
 
         chapter = xml.createElement('chapter')
         chapter.setAttribute("REFERENCE", title_refs[itr + 1])
@@ -204,14 +200,12 @@ def save_raw_txt(all_title_indices, all_lines, xml_track_df, out_path, title_ref
     for itr in tqdm(range(len(all_title_indices[:-2]))):
         title_indices = all_title_indices[itr]
         catalogue_indices = [x for x in range(title_indices[1], all_title_indices[itr + 1][0])]
-        # fullTitle = "".join([allLines[x] for x in title_indices])
-        # titleRef = findTitleRef(fullTitle)
 
         xml = xml_track_df.loc[title_indices[1], "xml"]
         clean_shelfmark = title_refs[itr + 1].replace(".", "_").replace(" ", "")
         save_path_file = os.path.join(out_path, f"{xml}_{clean_shelfmark}.txt")
+
         with open(save_path_file, "w", encoding="utf-8") as f:
-            # f.write(fullTitle + "\n")
             for line_index in catalogue_indices:
                 f.write(all_lines[line_index] + "\n")
 
@@ -222,7 +216,7 @@ def split_by_language(lines):
     first_line_lan = ""
     second_line_lan = ""
     try:
-        first_line_lan_lan = detect(lines[0])
+        first_line_lan = detect(lines[0])
     except:
         first_line_lan = "can't find language"
     try:
@@ -269,7 +263,6 @@ def save_split_txt(all_title_indices, all_lines, out_path, title_refs):
         title_indices = all_title_indices[itr]
         catalogue_indices = [x for x in range(title_indices[1], all_title_indices[itr + 1][0])]
         full_title = "".join([all_lines[x] for x in title_indices])
-        title_ref = find_title_ref(full_title)
 
         catalogue_lines = [all_lines[x] for x in catalogue_indices]
         first_language, split_catalogue_lines = split_by_language(catalogue_lines)
@@ -280,7 +273,6 @@ def save_split_txt(all_title_indices, all_lines, out_path, title_refs):
             language_en = first_language
             for block_lines in split_catalogue_lines:
                 if language_en:
-                    # f.write("##########ENGLISH SECTION##########\n")
                     for line in block_lines:
                         f.write(line + "\n")
                 else:
@@ -331,7 +323,6 @@ def save_poorly_scanned_pages(poorly_scanned, out_path):
 
 # Saves the raw text files, the text files split by language and the XML files
 def save_all(current_volume, xmls, xml_track_df, all_title_indices, all_lines, path, title_refs):
-    # out_path = os.path.join(path, "generated")  # if you do want them to go into a sub_folder of the output loc
     out_path = path
     if not os.path.exists(out_path):
         os.makedirs(out_path)
