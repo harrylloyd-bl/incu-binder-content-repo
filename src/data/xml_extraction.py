@@ -10,41 +10,41 @@ from tqdm import tqdm
 
 
 # Extracts all lines for given xmltree
-def extractLines(root: xml.etree.ElementTree.Element):
+def extract_lines(root: xml.etree.ElementTree.Element):
     lines = []
 
-    textRegions = [x for x in root[1] if len(x) > 2]  # Empty Text Regions Removed
+    text_regions = [x for x in root[1] if len(x) > 2]  # Empty Text Regions Removed
 
-    if len(textRegions) % 2 == 0:
-        half = int(len(textRegions) / 2)
-        newTextRegions = []
+    if len(text_regions) % 2 == 0:
+        half = int(len(text_regions) / 2)
+        new_text_regions = []
         for x in range(half):
-            newTextRegions.append(textRegions[x])
-            newTextRegions.append(textRegions[x + half])
-        textRegions = newTextRegions
+            new_text_regions.append(text_regions[x])
+            new_text_regions.append(text_regions[x + half])
+        text_regions = new_text_regions
 
-    for textRegion in textRegions:
-        textLines = textRegion[1:-1]  # Skip coordinate data in first child
-        for textLine in textLines:
-            lines.append(textLine[-1][0].text)  # Text equivalent for line
+    for text_region in text_regions:
+        text_lines = text_region[1:-1]  # Skip coordinate data in first child
+        for text_line in text_lines:
+            lines.append(text_line[-1][0].text)  # Text equivalent for line
     return lines
 
 
 # Extracts lines for a collection of xmltrees
-def extractLinesForVol(vol: dict[str: xml.etree.ElementTree.Element]):
-    allLines = []
+def extract_lines_for_vol(vol: dict[str: xml.etree.ElementTree.Element]):
+    all_lines = []
     xml_idx = []
     for xml, root in tqdm(vol.items()):
-        rootLines = extractLines(root)
-        allLines += rootLines
-        xml_idx += [xml] * len(rootLines)
+        root_lines = extract_lines(root)
+        all_lines += root_lines
+        xml_idx += [xml] * len(root_lines)
     xml_track_df = pd.DataFrame(
         data={
             "xml": xml_idx,
-            "line": allLines
+            "line": all_lines
         }
     )
-    return allLines, xml_track_df
+    return all_lines, xml_track_df
 
 
 # Regular expressions used in the detection og headings
@@ -55,7 +55,7 @@ date_regex = re.compile("1[45][0-9][0-9]")  # Date format regexes (specific to t
 
 
 # Looks for identifying marks of a catalogue heading beginning
-def checkLine(line: str):
+def check_line(line: str):
     if line is not None:
         return i_num_regex.search(line) or c_num_regex.search(line)
     else:
@@ -63,17 +63,17 @@ def checkLine(line: str):
 
 
 # Looks for identifying marks of a catalogue heading ending
-def dateCheck(titlePart: str):
-    return date_regex.search(titlePart) or "Undated" in titlePart
+def date_check(title_part: str):
+    return date_regex.search(title_part) or "Undated" in title_part
 
 
 # NOT USED RIGHT NOW
-def getInitTitle(lines: list[str]):
+def get_init_title(lines: list[str]):
     output = ""
     title = False
     for line in lines[:5]:
         output += line
-        if dateCheck(line):
+        if date_check(line):
             title = True
             break
     if title and len(caps_regex.findall(output)) > 0:
@@ -83,99 +83,99 @@ def getInitTitle(lines: list[str]):
 
 
 # Finds all headings from a list of lines
-def findHeadings(allLines: list[str]):
+def find_headings(all_lines: list[str]):
     titles = []  # The names of the titles
     index = -1
-    allTitleIndices = []
-    for x in range(len(allLines)):
+    all_title_indices = []
+    for x in range(len(all_lines)):
         index += 1
-        line = allLines[x]
+        line = all_lines[x]
         if line is not None:
-            if checkLine(line):  # If start of chapter found
+            if check_line(line):  # If start of chapter found
                 output = line
-                endFound = False
-                titleIndices = [index]
+                end_found = False
+                title_indices = [index]
                 for y in range(1, 7):
                     try:
-                        titlePart = allLines[x + y]
+                        title_part = all_lines[x + y]
                     except:
                         pass
-                    if checkLine(titlePart):  # If a new chapter begins during the current title
+                    if check_line(title_part):  # If a new chapter begins during the current title
                         break
-                    output += titlePart
-                    titleIndices.append(index + y)
-                    if dateCheck(titlePart):  # If end of a chapter found
-                        endFound = True
+                    output += title_part
+                    title_indices.append(index + y)
+                    if date_check(title_part):  # If end of a chapter found
+                        end_found = True
                         break
 
-                if endFound and len(caps_regex.findall(output)) > 0:  # Title has to contain all uppercase words
+                if end_found and len(caps_regex.findall(output)) > 0:  # Title has to contain all uppercase words
                     titles.append(output)
-                    allTitleIndices.append(titleIndices)
+                    all_title_indices.append(title_indices)
 
     #  if (len(getInitTitle(allLines)) > 0):
     #    titles = [getInitTitle(allLines)] + titles
-    return titles, allTitleIndices
+    return titles, all_title_indices
 
 
 # Extracts the title reference number from a line for I numbers (e.g. IB929)
-def getINumTitle(fullTitle: str):
-    if fullTitle[:14].count(".") >= 2:
-        return ".".join(fullTitle.split(".")[:2])
+def get_i_num_title(full_title: str):
+    if full_title[:14].count(".") >= 2:
+        return ".".join(full_title.split(".")[:2])
     else:
-        return fullTitle[:9]
+        return full_title[:9]
 
 
 # Extracts the title reference number from a line for C numbers (only found in 1 volume)
-def getCNumTitle(fullTitle: str):
-    if fullTitle[:14].count(".") >= 4:
-        return ".".join(fullTitle.split(".")[:4])
+def get_c_num_title(full_title: str):
+    if full_title[:14].count(".") >= 4:
+        return ".".join(full_title.split(".")[:4])
     else:
-        return fullTitle[:10]
+        return full_title[:10]
 
 
 # Finds the associated title reference from a given line
-def findTitleRef(fullTitle: str):
-    if i_num_regex.search(fullTitle) is not None:
-        ref = getINumTitle(fullTitle[i_num_regex.search(fullTitle).start():])
+def find_title_ref(full_title: str):
+    if i_num_regex.search(full_title) is not None:
+        ref = get_i_num_title(full_title[i_num_regex.search(full_title).start():])
         return ref.replace("/", ".")
-    elif c_num_regex.search(fullTitle) is not None:
-        ref = getCNumTitle(fullTitle[c_num_regex.search(fullTitle).start():])
+    elif c_num_regex.search(full_title) is not None:
+        ref = get_c_num_title(full_title[c_num_regex.search(full_title).start():])
         return ref.replace("/", ".")
     else:
         print("Unrecognized title format")
 
 
-def genTitleRefs(allTitleIndices: list[list[int]], allLines: list[str]):
+def gen_title_refs(all_title_indices: list[list[int]], all_lines: list[str]):
 
-    titleRefs = []
+    title_refs = []
 
-    for itr in range(len(allTitleIndices[:-1])):
-        titleIndices = allTitleIndices[itr]
-        fullTitle = "".join([allLines[x] for x in titleIndices])
-        titleRef = findTitleRef(fullTitle)
-        titleRefs.append(titleRef)
+    for itr in range(len(all_title_indices[:-1])):
+        title_indices = all_title_indices[itr]
+        full_title = "".join([all_lines[x] for x in title_indices])
+        titleRef = find_title_ref(full_title)
+        title_refs.append(titleRef)
 
-    return titleRefs
+    return title_refs
 
 
 # Generates an XML document based on the found catalogue headings in the document
-def generateXML(allTitleIndices: list[list[int]], allLines: list[str], titleRefs):
+def generate_xml(all_title_indices: list[list[int]], all_lines: list[str], title_refs):
     xml = minidom.Document()
     text = xml.createElement('text')
 
-    for itr in range(len(allTitleIndices[:-2])):
-        titleIndices = allTitleIndices[itr]
-        catalogueIndices = [x for x in range(titleIndices[-1], allTitleIndices[itr + 1][0])]
-        fullTitle = "".join([allLines[x] for x in titleIndices])
-        titleRef = findTitleRef(fullTitle)
+    for itr in range(len(all_title_indices[:-2])):
+        title_indices = all_title_indices[itr]
+        catalogue_indices = [x for x in range(title_indices[-1], all_title_indices[itr + 1][0])]
+        full_title = "".join([all_lines[x] for x in title_indices])
+        title_ref = find_title_ref(full_title)
 
         chapter = xml.createElement('chapter')
-        chapter.setAttribute("REFERENCE", titleRefs[itr + 1])
-        chapter.setAttribute("HEADING", fullTitle)
+        chapter.setAttribute("REFERENCE", title_refs[itr + 1])
+        chapter.setAttribute("HEADING", full_title)
 
-        for catalogueIndex in catalogueIndices:
+        for catalogue_index in catalogue_indices:
             line = xml.createElement('line')
-            line.setAttribute("CONTENT", allLines[catalogueIndex])
+            line.setAttribute("CONTENT", all_lines[catalogue_index])
             chapter.appendChild(line)
 
         text.appendChild(chapter)
@@ -185,10 +185,10 @@ def generateXML(allTitleIndices: list[list[int]], allLines: list[str], titleRefs
 
 
 # Saves the generated XML for the headings into a chosen location
-def saveXML(allTitleIndices, allLines, out_path, titleRefs):
+def save_xml(all_title_indices, all_lines, out_path, title_refs):
     if not os.path.exists(out_path):
         os.makedirs(out_path)
-    xml = generateXML(allTitleIndices, allLines, titleRefs)
+    xml = generate_xml(all_title_indices, all_lines, title_refs)
     xml_str = xml.toprettyxml(indent="\t")
     save_path_file = out_path + "/headings.xml"
     with open(save_path_file, "w", encoding="utf-8") as f:
@@ -198,152 +198,151 @@ def saveXML(allTitleIndices, allLines, out_path, titleRefs):
 
 
 # Saves all of the text, split by chapters, into text files
-def saveRawTxt(allTitleIndices, allLines, xml_track_df, out_path, titleRefs):
+def save_raw_txt(all_title_indices, all_lines, xml_track_df, out_path, title_refs):
     if not os.path.exists(out_path):
         os.makedirs(out_path)
 
-    for itr in tqdm(range(len(allTitleIndices[:-2]))):
-        titleIndices = allTitleIndices[itr]
-        catalogueIndices = [x for x in range(titleIndices[1], allTitleIndices[itr + 1][0])]
-        fullTitle = "".join([allLines[x] for x in titleIndices])
-        titleRef = findTitleRef(fullTitle)
+    for itr in tqdm(range(len(all_title_indices[:-2]))):
+        title_indices = all_title_indices[itr]
+        catalogue_indices = [x for x in range(title_indices[1], all_title_indices[itr + 1][0])]
+        # fullTitle = "".join([allLines[x] for x in title_indices])
+        # titleRef = findTitleRef(fullTitle)
 
-        xml = xml_track_df.loc[titleIndices[1], "xml"]
-        clean_shelfmark = titleRefs[itr + 1].replace(".", "_").replace(" ", "")
-        save_path_file = os.path.join(out_path, f"{xml[:-4]}_{clean_shelfmark}.txt")
+        xml = xml_track_df.loc[title_indices[1], "xml"]
+        clean_shelfmark = title_refs[itr + 1].replace(".", "_").replace(" ", "")
+        save_path_file = os.path.join(out_path, f"{xml}_{clean_shelfmark}.txt")
         with open(save_path_file, "w", encoding="utf-8") as f:
             # f.write(fullTitle + "\n")
-            for lineIndex in catalogueIndices:
-                f.write(allLines[lineIndex] + "\n")
-        # shutil.make_archive(path, 'zip', path)
+            for line_index in catalogue_indices:
+                f.write(all_lines[line_index] + "\n")
 
 
 # Splits up a document by the detected language
-def splitByLanguage(lines):
-    splitLines = []
-    firstLineLan = ""
-    secondLineLan = ""
+def split_by_language(lines):
+    split_lines = []
+    first_line_lan = ""
+    second_line_lan = ""
     try:
-        firstLineLanLan = detect(lines[0])
+        first_line_lan_lan = detect(lines[0])
     except:
-        firstLineLan = "can't find language"
+        first_line_lan = "can't find language"
     try:
-        secondLineLan = detect(lines[1])
+        second_line_lan = detect(lines[1])
     except:
-        secondLineLan = "can't find language"
-    first2Lines = [firstLineLan, secondLineLan]
-    languageEn = first2Lines.count("en") == 2
-    firstLanguage = languageEn
-    currentBlock = [lines[0], lines[1]]
+        second_line_lan = "can't find language"
+    first2_lines = [first_line_lan, second_line_lan]
+    language_en = first2_lines.count("en") == 2
+    first_language = language_en
+    current_block = [lines[0], lines[1]]
     for ind in range(2, len(lines[:-1])):
-        cLineLan = ""
-        nLineLan = ""
+        c_line_lan = ""
+        n_line_lan = ""
         try:
-            cLineLan = detect(lines[ind])
+            c_line_lan = detect(lines[ind])
         except:
-            cLineLan = "can't find language"
+            c_line_lan = "can't find language"
         try:
-            nLineLan = detect(lines[ind + 1])
+            n_line_lan = detect(lines[ind + 1])
         except:
-            nLineLan = "can't find language"
-        next2Lines = [cLineLan, nLineLan]
-        if (next2Lines.count("en") == 0) and languageEn:
-            languageEn = False
-            splitLines.append(currentBlock)
-            currentBlock = [lines[ind]]
-        elif (next2Lines.count("en") == 2) and (not languageEn):
-            languageEn = True
-            splitLines.append(currentBlock)
-            currentBlock = [lines[ind]]
+            n_line_lan = "can't find language"
+        next2_lines = [c_line_lan, n_line_lan]
+        if (next2_lines.count("en") == 0) and language_en:
+            language_en = False
+            split_lines.append(current_block)
+            current_block = [lines[ind]]
+        elif (next2_lines.count("en") == 2) and (not language_en):
+            language_en = True
+            split_lines.append(current_block)
+            current_block = [lines[ind]]
         else:
-            currentBlock.append(lines[ind])
-    currentBlock.append(lines[-1])
-    splitLines.append(currentBlock)
-    return firstLanguage, splitLines
+            current_block.append(lines[ind])
+    current_block.append(lines[-1])
+    split_lines.append(current_block)
+    return first_language, split_lines
 
 
 # Saves all of the text, split by chapters into text files where non-english sections of text are removed
-def saveSplitTxt(allTitleIndices, allLines, out_path, titleRefs):
+def save_split_txt(all_title_indices, all_lines, out_path, title_refs):
     if not os.path.exists(out_path):
         os.makedirs(out_path)
 
-    for itr in tqdm(range(len(allTitleIndices[:-2]))):
-        titleIndices = allTitleIndices[itr]
-        catalogueIndices = [x for x in range(titleIndices[1], allTitleIndices[itr + 1][0])]
-        fullTitle = "".join([allLines[x] for x in titleIndices])
-        titleRef = findTitleRef(fullTitle)
+    for itr in tqdm(range(len(all_title_indices[:-2]))):
+        title_indices = all_title_indices[itr]
+        catalogue_indices = [x for x in range(title_indices[1], all_title_indices[itr + 1][0])]
+        full_title = "".join([all_lines[x] for x in title_indices])
+        title_ref = find_title_ref(full_title)
 
-        catalogueLines = [allLines[x] for x in catalogueIndices]
-        firstLanguage, splitCatalogueLines = splitByLanguage(catalogueLines)
+        catalogue_lines = [all_lines[x] for x in catalogue_indices]
+        first_language, split_catalogue_lines = split_by_language(catalogue_lines)
 
-        save_path_file = os.path.join(out_path, titleRefs[itr + 1].replace(".", "-") + ".txt")
+        save_path_file = os.path.join(out_path, title_refs[itr + 1].replace(".", "-") + ".txt")
         with open(save_path_file, "w", encoding="utf-8") as f:
-            f.write(fullTitle + "\n")
-            languageEn = firstLanguage
-            for blockLines in splitCatalogueLines:
-                if languageEn:
+            f.write(full_title + "\n")
+            language_en = first_language
+            for block_lines in split_catalogue_lines:
+                if language_en:
                     # f.write("##########ENGLISH SECTION##########\n")
-                    for line in blockLines:
+                    for line in block_lines:
                         f.write(line + "\n")
                 else:
                     f.write("-----------------------------------\n")
-                    f.write("NON-ENGLISH SECTION LASTING {} LINES\n".format(len(blockLines)))
+                    f.write("NON-ENGLISH SECTION LASTING {} LINES\n".format(len(block_lines)))
                     f.write("-----------------------------------\n")
-                languageEn = not languageEn
+                language_en = not language_en
         # shutil.make_archive(path, 'zip', path)
 
 
 # Returns the number of lines in a page which are too long
-def numOutliersForPage(lines, std, mean, threshold=2):
+def num_outliers_for_page(lines, std, mean, threshold=2):
     lengths = [len(x.split()) for x in lines if x is not None]
     lengths = [(x - mean) for x in lengths]
     lengths = [(x / std) for x in lengths]
-    numOutliers = len([x for x in lengths if x > threshold])
-    return numOutliers
+    num_outliers = len([x for x in lengths if x > threshold])
+    return num_outliers
 
 
 # Find all of the poorly scanned pages in the input
-def getPoorlyScannedPages(volumeRoot, fileNames):
-    poorlyScannedPageNums = []
+def get_poorly_scanned_pages(volume_root, file_names):
+    poorly_scanned_page_nums = []
 
     # Get all the lines for the volume and find the mean and std for the line lengths across all volumes
-    volLines, xml_check_df = extractLinesForVol(volumeRoot)
-    lengths = [len(x.split()) for x in volLines if x is not None]
+    vol_lines, xml_check_df = extract_lines_for_vol(volume_root)
+    lengths = [len(x.split()) for x in vol_lines if x is not None]
     mean = np.mean(lengths)
     std = np.std(lengths)
 
     # For every page (xmlroot) in the volume
-    for root, filename in zip(volumeRoot.values(), fileNames):
+    for root, filename in zip(volume_root.values(), file_names):
         page = root
-        pageLines = extractLines(page)
-        numOutliers = numOutliersForPage(pageLines, std, mean)
-        if numOutliers > 5:
-            poorlyScannedPageNums.append(filename.decode("utf-8"))
-    return poorlyScannedPageNums
+        page_lines = extract_lines(page)
+        num_outliers = num_outliers_for_page(page_lines, std, mean)
+        if num_outliers > 5:
+            poorly_scanned_page_nums.append(filename.decode("utf-8"))
+    return poorly_scanned_page_nums
 
 
 # Save poorly scanned page numbers to a text file
-def savePoorlyScannedPages(poorlyScanned, out_path):
+def save_poorly_scanned_pages(poorly_scanned, out_path):
     if not os.path.exists(out_path):
         os.makedirs(out_path)
     save_path_file = os.path.join(out_path, "poorlyscanned.txt")
     with open(save_path_file, "w", encoding="utf-8") as f:
-        for scan in poorlyScanned:
+        for scan in poorly_scanned:
             f.write(scan + "\n")
     # shutil.make_archive(path, 'zip', path)
 
 
 # Saves the raw text files, the text files split by language and the XML files
-def saveAll(currentVolume, xmls, xml_track_df, allTitleIndices, allLines, path, titleRefs):
+def save_all(current_volume, xmls, xml_track_df, all_title_indices, all_lines, path, title_refs):
     # out_path = os.path.join(path, "generated")  # if you do want them to go into a sub_folder of the output loc
     out_path = path
     if not os.path.exists(out_path):
         os.makedirs(out_path)
 
-    savePoorlyScannedPages(getPoorlyScannedPages(currentVolume, xmls), out_path)
+    save_poorly_scanned_pages(get_poorly_scanned_pages(current_volume, xmls), out_path)
     print("Saving raw txt files")
-    saveRawTxt(allTitleIndices, allLines, xml_track_df, os.path.join(out_path, "rawtextfiles"), titleRefs)
+    save_raw_txt(all_title_indices, all_lines, xml_track_df, os.path.join(out_path, "rawtextfiles"), title_refs)
     print("Saving split txt files")
-    saveSplitTxt(allTitleIndices, allLines, os.path.join(out_path, "splittextfiles"), titleRefs)
-    saveXML(allTitleIndices, allLines, out_path, titleRefs)
+    save_split_txt(all_title_indices, all_lines, os.path.join(out_path, "splittextfiles"), title_refs)
+    save_xml(all_title_indices, all_lines, out_path, title_refs)
     # shutil.make_archive(out_path, 'zip', out_path)
