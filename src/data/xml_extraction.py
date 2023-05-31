@@ -194,7 +194,6 @@ def save_xml(all_title_indices, all_lines, out_path, title_refs):
     with open(save_path_file, "w", encoding="utf-8") as f:
         f.write(xml_str)
         f.close()
-    # shutil.make_archive(path, 'zip', path)
 
 
 # Saves all of the text, split by chapters, into text files
@@ -289,7 +288,6 @@ def save_split_txt(all_title_indices, all_lines, out_path, title_refs):
                     f.write("NON-ENGLISH SECTION LASTING {} LINES\n".format(len(block_lines)))
                     f.write("-----------------------------------\n")
                 language_en = not language_en
-        # shutil.make_archive(path, 'zip', path)
 
 
 # Returns the number of lines in a page which are too long
@@ -329,7 +327,6 @@ def save_poorly_scanned_pages(poorly_scanned, out_path):
     with open(save_path_file, "w", encoding="utf-8") as f:
         for scan in poorly_scanned:
             f.write(scan + "\n")
-    # shutil.make_archive(path, 'zip', path)
 
 
 # Saves the raw text files, the text files split by language and the XML files
@@ -345,4 +342,3 @@ def save_all(current_volume, xmls, xml_track_df, all_title_indices, all_lines, p
     print("Saving split txt files")
     save_split_txt(all_title_indices, all_lines, os.path.join(out_path, "splittextfiles"), title_refs)
     save_xml(all_title_indices, all_lines, out_path, title_refs)
-    # shutil.make_archive(out_path, 'zip', out_path)
