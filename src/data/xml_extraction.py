@@ -396,18 +396,3 @@ def save_all(current_volume, xmls, xml_track_df, all_title_indices, all_lines, p
     print("Saving split txt files")
     save_split_txt(all_title_indices, all_lines, os.path.join(out_path, "splittextfiles"), title_refs)
     save_xml(all_lines, all_title_indices, title_refs, out_path)
-
-
-# NOT USED RIGHT NOW
-def get_init_title(lines: list[str]):
-    output = ""
-    title = False
-    for line in lines[:5]:
-        output += line
-        if date_check(line):
-            title = True
-            break
-    if title and len(caps_regex.findall(output)) > 0:
-        return output
-    else:
-        return " ".join(caps_regex.findall("".join(lines[:5])))
