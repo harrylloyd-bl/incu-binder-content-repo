@@ -24,7 +24,7 @@ if __name__ == '__main__':
     for x in page_xmls:
         page_xml_loc_2 = os.path.join(x[0], r"*\*\page\*.xml")
         page_xml_loc_4 = os.path.join(x[1], r"*\*\page\*.xml")
-        out_path = os.path.join(network_loc, "split_data\\test", os.path.basename(x[0]).split(" ")[0])
+        out_path = os.path.join(network_loc, "split_data\\test", os.path.basename(x[0]).split(" ")[0] + "_gen_title_refs_refactor")
         attempts = 0
         while attempts < 3:
             xmls_2 = glob.glob(os.fsencode(page_xml_loc_2))
@@ -60,11 +60,11 @@ if __name__ == '__main__':
 
         print("\nExtrating catalogue entries from xmls")
         current_volume = {k: xmlroots[k] for k in sorted(xmlroots)}
-        allLines, xml_track_df = xmle.extract_lines_for_vol(current_volume)
-        allLines = [line for line in allLines if line is not None]
+        all_lines, xml_track_df = xmle.extract_lines_for_vol(current_volume)
+        all_lines = [line for line in all_lines if line is not None]
         xml_track_df = xml_track_df.dropna(subset="line")
-        titles, all_title_indices = xmle.find_headings(allLines)
-        title_refs = xmle.gen_title_refs(all_title_indices, allLines)
+        titles, all_title_indices = xmle.find_headings(all_lines)
+        title_refs = xmle.gen_title_refs(all_lines, all_title_indices)
 
         print(f"\nSaving catalogue entries to {out_path}\n")
         if not os.path.exists(out_path):
@@ -72,10 +72,11 @@ if __name__ == '__main__':
 
         xmle.save_poorly_scanned_pages(xmle.get_poorly_scanned_pages(current_volume, xmls), out_path)
         print("Saving raw txt files")
-        xmle.save_raw_txt(all_title_indices, allLines, xml_track_df, os.path.join(out_path, "rawtextfiles"), title_refs)
+        xmle.save_raw_txt(all_lines, all_title_indices, title_refs, xml_track_df,
+                          os.path.join(out_path, "rawtextfiles"))
         # print("Saving split txt files")
         # xmle.saveSplitTxt(allTitleIndices, allLines, os.path.join(out_path, "splittextfiles"), titleRefs)
-        xmle.save_xml(all_title_indices, allLines, out_path, title_refs)
+        xmle.save_xml(all_lines, all_title_indices, title_refs, out_path)
 
         # xmle.saveAll(
         #     currentVolume=currentVolume,
