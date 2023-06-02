@@ -1,15 +1,20 @@
 import os
 import re
-import xml
 from xml.dom import minidom
 import numpy as np
 import pandas as pd
 from langdetect import detect
 from tqdm import tqdm
+from xml.etree import ElementTree as ET
 
 
 # Extracts all lines for given xmltree
-def extract_lines(root: xml.etree.ElementTree.Element):
+def extract_lines(root: ET.Element) -> list[str]:
+    """
+    Extract the text lines from a page xml
+    :param root: ET.Element: an xml root
+    :return: list[str]: a list of the text lines in the xml
+    """
     lines = []
 
     text_regions = [x for x in root[1] if len(x) > 2]  # Empty Text Regions Removed
@@ -30,188 +35,194 @@ def extract_lines(root: xml.etree.ElementTree.Element):
 
 
 # Extracts lines for a collection of xmltrees
-def extract_lines_for_vol(vol: dict[str: xml.etree.ElementTree.Element]):
-    all_lines = []
+def extract_lines_for_vol(vol: dict[str: ET.Element]) -> tuple[list[str], pd.DataFrame]:
+    lines = []
     xml_idx = []
     for xml, root in tqdm(vol.items()):
         root_lines = extract_lines(root)
-        all_lines += root_lines
+        lines += root_lines
         xml_idx += [xml] * len(root_lines)
     xml_track_df = pd.DataFrame(
         data={
             "xml": xml_idx,
-            "line": all_lines
+            "line": lines
         }
     )
-    return all_lines, xml_track_df
+    return lines, xml_track_df
 
 
-# Regular expressions used in the detection og headings
+# Regular expressions used to detect headings
 caps_regex = re.compile("[A-Z][A-Z][A-Z]+")
-c_num_regex = re.compile("C\.[0-9]")  # C number title references
-i_num_regex = re.compile("I[ABC]\.\s[0-9]")  # I number title references
-date_regex = re.compile("1[45][0-9][0-9]")  # Date format regexes (specific to this volume)
+c_num_regex = re.compile("C\\.[0-9]")  # C number title references
+i_num_regex = re.compile("I[ABC]\\.\\s[0-9]")  # I number title references
+date_regex = re.compile("1[45][0-9][0-9]")
 
 
-# Looks for identifying marks of a catalogue heading beginning
-def check_line(line: str):
-    if line is not None:
+def shelfmark_check(line: str) -> re.Match[str] | None | bool:
+    """
+    Looks for identifying marks of a catalogue heading beginning
+    :param line:
+    :return:
+    """
+    if line:
         return i_num_regex.search(line) or c_num_regex.search(line)
     else:
         return False
 
 
-# Looks for identifying marks of a catalogue heading ending
-def date_check(title_part: str):
-    return date_regex.search(title_part) or "Undated" in title_part
-
-
-# NOT USED RIGHT NOW
-def get_init_title(lines: list[str]):
-    output = ""
-    title = False
-    for line in lines[:5]:
-        output += line
-        if date_check(line):
-            title = True
-            break
-    if title and len(caps_regex.findall(output)) > 0:
-        return output
+def date_check(line: str) -> re.Match | str | None:
+    """
+    Looks for identifying marks of a catalogue heading ending
+    :param line:
+    :return:
+    """
+    if line:
+        return date_regex.search(line) or "Undated" in line
     else:
-        return " ".join(caps_regex.findall("".join(lines[:5])))
+        return False
 
 
-# Finds all headings from a list of lines
-def find_headings(all_lines: list[str]):
-    titles = []  # The names of the titles
-    index = -1
-    all_title_indices = []
-    for x in range(len(all_lines)):
-        index += 1
-        line = all_lines[x]
-        if line is not None:
-            if check_line(line):  # If start of chapter found
-                output = line
-                end_found = False
-                title_indices = [index]
-                for y in range(1, 7):
-                    try:
-                        title_part = all_lines[x + y]
-                    except:
-                        pass
-                    if check_line(title_part):  # If a new chapter begins during the current title
-                        break
-                    output += title_part
-                    title_indices.append(index + y)
-                    if date_check(title_part):  # If end of a chapter found
-                        end_found = True
-                        break
-
-                if end_found and len(caps_regex.findall(output)) > 0:  # Title has to contain all uppercase words
-                    titles.append(output)
-                    all_title_indices.append(title_indices)
-
-    return titles, all_title_indices
-
-
-# Extracts the title reference number from a line for I numbers (e.g. IB929)
-def get_i_num_title(full_title: str):
+def get_i_num_title(full_title: str) -> str:
+    """
+    Extracts the title reference number from a line for I numbers (e.g. IB929)
+    :param full_title:
+    :return:
+    """
     if full_title[:14].count(".") >= 2:
         return ".".join(full_title.split(".")[:2])
     else:
         return full_title[:9]
 
 
-# Extracts the title reference number from a line for C numbers (only found in 1 volume)
-def get_c_num_title(full_title: str):
+def get_c_num_title(full_title: str) -> str:
+    """
+    Extracts the title reference number from a line for C numbers (only found in 1 volume)
+    :param full_title:
+    :return:
+    """
     if full_title[:14].count(".") >= 4:
         return ".".join(full_title.split(".")[:4])
     else:
         return full_title[:10]
 
 
-# Finds the associated title reference from a given line
-def find_title_ref(full_title: str):
-    if i_num_regex.search(full_title) is not None:
-        ref = get_i_num_title(full_title[i_num_regex.search(full_title).start():])
+def find_title_ref(title: str) -> str:
+    """
+    Finds the associated title reference from a given line
+    :param title:
+    :return:
+    """
+    if i_num_regex.search(title) is not None:
+        ref = get_i_num_title(title[i_num_regex.search(title).start():])
         return ref.replace("/", ".")
-    elif c_num_regex.search(full_title) is not None:
-        ref = get_c_num_title(full_title[c_num_regex.search(full_title).start():])
+    elif c_num_regex.search(title) is not None:
+        ref = get_c_num_title(title[c_num_regex.search(title).start():])
         return ref.replace("/", ".")
     else:
         print("Unrecognized title format")
 
 
-def gen_title_refs(all_title_indices: list[list[int]], all_lines: list[str]):
+# Finds all headings from a list of lines
+def find_headings(lines: list[str]) -> tuple[list[str], list[list[int]]]:
+    titles = []  # The names of the titles
+    title_indices = []
 
+    for i, l in enumerate(lines):
+        if shelfmark_check(l):
+            title = l
+            title_index = [i]
+            y = 1
+            while i + y < len(lines) and y < 8:
+                title_part = lines[i + y]
+                if shelfmark_check(title_part):  # If a new catalogue entry begins during the current title
+                    y = 1
+                    break
+
+                title += title_part
+                title_index.append(i + y)
+                y += 1
+
+                if date_check(title_part) and caps_regex.findall(title):  # Date marks the end of a heading
+                    titles.append(title)
+                    title_indices.append(title_index)
+                    y = 1
+                    break
+
+    # title_refs = [find_title_ref(t) for t in titles]
+
+    return titles, title_indices
+
+
+def gen_title_refs(lines: list[str], title_indices: list[list[int]]) -> list[str]:
+    """
+    Extracts full titles from the list of all lines
+    For each full title extracts the title reference
+    :param title_indices: list[list[int]]: Indices for all the lines in lines that constitute a title
+    :param lines: A set of Incunabula lines, e.g. from a full volume or a single page
+    :return: list[str]
+    """
     title_refs = []
 
-    for itr in range(len(all_title_indices[:-1])):
-        title_indices = all_title_indices[itr]
-        full_title = "".join([all_lines[x] for x in title_indices])
+    for idx in title_indices:
+        full_title = "".join([lines[x] for x in idx])
         title_ref = find_title_ref(full_title)
         title_refs.append(title_ref)
 
     return title_refs
 
 
-# Generates an XML document based on the found catalogue headings in the document
-def generate_xml(all_title_indices: list[list[int]], all_lines: list[str], title_refs):
-    xml = minidom.Document()
-    text = xml.createElement('text')
+def extract_catalogue_entries(lines: list[str],
+                              title_indices: list[list[int]],
+                              title_refs: list[str],
+                              xml_track_df: pd.DataFrame):
+    """
+    Use catalogue entry indices to extract from the main list of lines
+    :param lines:
+    :param title_indices:
+    :param title_refs:
+    :param xml_track_df:
+    :return:
+    """
+    labels = []
+    entries = []
 
-    for itr in range(len(all_title_indices[:-2])):
-        title_indices = all_title_indices[itr]
-        catalogue_indices = [x for x in range(title_indices[-1], all_title_indices[itr + 1][0])]
-        full_title = "".join([all_lines[x] for x in title_indices])
+    for i, idx in tqdm(enumerate(title_indices[:-1])):
+        catalogue_indices = [x for x in range(idx[1], title_indices[i + 1][0])]
+        entries.append([lines[x] for x in catalogue_indices])
 
-        chapter = xml.createElement('chapter')
-        chapter.setAttribute("REFERENCE", title_refs[itr + 1])
-        chapter.setAttribute("HEADING", full_title)
+        xml = xml_track_df.loc[idx[1], "xml"]
+        clean_shelfmark = title_refs[i + 1].replace(".", "_").replace(" ", "")
+        labels.append(f"{xml}_{clean_shelfmark}.txt")
 
-        for catalogue_index in catalogue_indices:
-            line = xml.createElement('line')
-            line.setAttribute("CONTENT", all_lines[catalogue_index])
-            chapter.appendChild(line)
-
-        text.appendChild(chapter)
-
-    xml.appendChild(text)
-    return xml
-
-
-# Saves the generated XML for the headings into a chosen location
-def save_xml(all_title_indices, all_lines, out_path, title_refs):
-    if not os.path.exists(out_path):
-        os.makedirs(out_path)
-    xml = generate_xml(all_title_indices, all_lines, title_refs)
-    xml_str = xml.toprettyxml(indent="\t")
-    save_path_file = out_path + "/headings.xml"
-    with open(save_path_file, "w", encoding="utf-8") as f:
-        f.write(xml_str)
-        f.close()
+    return pd.DataFrame(data={"labels": labels, "entries": entries})
 
 
-# Saves all of the text, split by chapters, into text files
-def save_raw_txt(all_title_indices, all_lines, xml_track_df, out_path, title_refs):
+# Saves all of the text, split into catalogue entries, into text files
+def save_raw_txt(lines: list[str],
+                 title_indices: list[list[int]],
+                 title_refs: list[str],
+                 xml_track_df: pd.DataFrame,
+                 out_path: str | os.PathLike) -> None:
+
     if not os.path.exists(out_path):
         os.makedirs(out_path)
 
-    for itr in tqdm(range(len(all_title_indices[:-2]))):
-        title_indices = all_title_indices[itr]
-        catalogue_indices = [x for x in range(title_indices[1], all_title_indices[itr + 1][0])]
+    for i, idx in tqdm(enumerate(title_indices[:-1])):
+        catalogue_indices = [x for x in range(idx[1], title_indices[i + 1][0])]
 
-        xml = xml_track_df.loc[title_indices[1], "xml"]
-        clean_shelfmark = title_refs[itr + 1].replace(".", "_").replace(" ", "")
-        save_path_file = os.path.join(out_path, f"{xml}_{clean_shelfmark}.txt")
+        source_xml = xml_track_df.loc[idx[1], "xml"]
+        clean_shelfmark = title_refs[i + 1].replace(".", "_").replace(" ", "")
+        save_path_file = os.path.join(out_path, f"{source_xml}_{clean_shelfmark}.txt")
 
         with open(save_path_file, "w", encoding="utf-8") as f:
             for line_index in catalogue_indices:
-                f.write(all_lines[line_index] + "\n")
+                f.write(lines[line_index] + "\n")
+
+    return None
 
 
 # Splits up a document by the detected language
-def split_by_language(lines):
+def split_by_language(lines: list[str]):
     split_lines = []
     first_line_lan = ""
     second_line_lan = ""
@@ -254,7 +265,7 @@ def split_by_language(lines):
     return first_language, split_lines
 
 
-# Saves all of the text, split by chapters into text files where non-english sections of text are removed
+# Saves all of the text, split into catalogue entries into text files where non-english sections of text are removed
 def save_split_txt(all_title_indices, all_lines, out_path, title_refs):
     if not os.path.exists(out_path):
         os.makedirs(out_path)
@@ -321,6 +332,58 @@ def save_poorly_scanned_pages(poorly_scanned, out_path):
             f.write(scan + "\n")
 
 
+def generate_xml(lines: list[str],
+                 title_indices: list[list[int]],
+                 title_refs: list[str]) -> minidom.Document:
+    """
+    Generates an XML document based on the found catalogue headings in the document
+    :param lines:
+    :param title_indices:
+    :param title_refs:
+    :return:
+    """
+    xml = minidom.Document()
+    text = xml.createElement('text')
+
+    for itr in range(len(title_indices[:-2])):
+        title_indices = title_indices[itr]
+        catalogue_indices = [x for x in range(title_indices[-1], title_indices[itr + 1][0])]
+        full_title = "".join([lines[x] for x in title_indices])
+
+        catalogue_entry = xml.createElement('catalogue_entry')
+        catalogue_entry.setAttribute("SHELFMARK", title_refs[itr + 1])
+        catalogue_entry.setAttribute("HEADING", full_title)
+
+        for catalogue_index in catalogue_indices:
+            line = xml.createElement('line')
+            line.setAttribute("CONTENT", lines[catalogue_index])
+            catalogue_entry.appendChild(line)
+
+        text.appendChild(catalogue_entry)
+
+    xml.appendChild(text)
+    return xml
+
+
+# Saves the generated XML for the headings into a chosen location
+def save_xml(lines: list[str],
+             title_indices: list[list[int]],
+             title_refs: list[str],
+             out_path: str | os.PathLike) -> None:
+
+    if not os.path.exists(out_path):
+        os.makedirs(out_path)
+
+    xml = generate_xml(lines, title_indices, title_refs)
+    xml_str = xml.toprettyxml(indent="\t")
+    save_path_file = out_path + "/headings.xml"
+    with open(save_path_file, "w", encoding="utf-8") as f:
+        f.write(xml_str)
+        f.close()
+
+    return None
+
+
 # Saves the raw text files, the text files split by language and the XML files
 def save_all(current_volume, xmls, xml_track_df, all_title_indices, all_lines, path, title_refs):
     out_path = path
@@ -329,7 +392,22 @@ def save_all(current_volume, xmls, xml_track_df, all_title_indices, all_lines, p
 
     save_poorly_scanned_pages(get_poorly_scanned_pages(current_volume, xmls), out_path)
     print("Saving raw txt files")
-    save_raw_txt(all_title_indices, all_lines, xml_track_df, os.path.join(out_path, "rawtextfiles"), title_refs)
+    save_raw_txt(all_lines, all_title_indices, title_refs, xml_track_df, os.path.join(out_path, "rawtextfiles"))
     print("Saving split txt files")
     save_split_txt(all_title_indices, all_lines, os.path.join(out_path, "splittextfiles"), title_refs)
-    save_xml(all_title_indices, all_lines, out_path, title_refs)
+    save_xml(all_lines, all_title_indices, title_refs, out_path)
+
+
+# NOT USED RIGHT NOW
+def get_init_title(lines: list[str]):
+    output = ""
+    title = False
+    for line in lines[:5]:
+        output += line
+        if date_check(line):
+            title = True
+            break
+    if title and len(caps_regex.findall(output)) > 0:
+        return output
+    else:
+        return " ".join(caps_regex.findall("".join(lines[:5])))
