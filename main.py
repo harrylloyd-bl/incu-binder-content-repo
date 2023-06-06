@@ -63,8 +63,8 @@ if __name__ == '__main__':
         all_lines, xml_track_df = xmle.extract_lines_for_vol(current_volume)
         all_lines = [line for line in all_lines if line is not None]
         xml_track_df = xml_track_df.dropna(subset="line")
-        titles, all_title_indices = xmle.find_headings(all_lines)
-        title_refs = xmle.gen_title_refs(all_lines, all_title_indices)
+        title_shelfmarks, all_title_indices = xmle.find_headings(all_lines)
+        # title_refs = xmle.gen_title_refs(all_lines, all_title_indices)
 
         print(f"\nSaving catalogue entries to {out_path}\n")
         if not os.path.exists(out_path):
@@ -72,11 +72,11 @@ if __name__ == '__main__':
 
         xmle.save_poorly_scanned_pages(xmle.get_poorly_scanned_pages(current_volume, xmls), out_path)
         print("Saving raw txt files")
-        xmle.save_raw_txt(all_lines, all_title_indices, title_refs, xml_track_df,
+        xmle.save_raw_txt(all_lines, all_title_indices, title_shelfmarks, xml_track_df,
                           os.path.join(out_path, "rawtextfiles"))
         # print("Saving split txt files")
         # xmle.saveSplitTxt(allTitleIndices, allLines, os.path.join(out_path, "splittextfiles"), titleRefs)
-        xmle.save_xml(all_lines, all_title_indices, title_refs, out_path)
+        xmle.save_xml(all_lines, all_title_indices, title_shelfmarks, out_path)
 
         # xmle.saveAll(
         #     currentVolume=currentVolume,

@@ -106,7 +106,7 @@ def get_c_num_title(full_title: str) -> str:
         return full_title[:10]
 
 
-def find_title_ref(title: str) -> str:
+def find_title_shelfmark(title: str) -> str:
     """
     Finds the associated title reference from a given line
     :param title:
@@ -127,91 +127,93 @@ def find_headings(lines: list[str]) -> tuple[list[str], list[list[int]]]:
     titles = []  # The names of the titles
     title_indices = []
 
+    # TODO include the first catalogue entry as well
     for i, l in enumerate(lines):
         if shelfmark_check(l):
             title = l
             title_index = [i]
-            y = 1
-            while i + y < len(lines) and y < 8:
-                title_part = lines[i + y]
+            j = 1
+            while i + j < len(lines) and j < 8:
+                title_part = lines[i + j]
                 if shelfmark_check(title_part):  # If a new catalogue entry begins during the current title
-                    y = 1
+                    j = 1
                     break
 
                 title += title_part
-                title_index.append(i + y)
-                y += 1
+                title_index.append(i + j)
+                j += 1
 
                 if date_check(title_part) and caps_regex.findall(title):  # Date marks the end of a heading
                     titles.append(title)
                     title_indices.append(title_index)
-                    y = 1
+                    j = 1
                     break
 
-    # title_refs = [find_title_ref(t) for t in titles]
+    title_shelfmarks = [find_title_shelfmark(t) for t in titles]
 
-    return titles, title_indices
-
-
-def gen_title_refs(lines: list[str], title_indices: list[list[int]]) -> list[str]:
-    """
-    Extracts full titles from the list of all lines
-    For each full title extracts the title reference
-    :param title_indices: list[list[int]]: Indices for all the lines in lines that constitute a title
-    :param lines: A set of Incunabula lines, e.g. from a full volume or a single page
-    :return: list[str]
-    """
-    title_refs = []
-
-    for idx in title_indices:
-        full_title = "".join([lines[x] for x in idx])
-        title_ref = find_title_ref(full_title)
-        title_refs.append(title_ref)
-
-    return title_refs
+    return title_shelfmarks, title_indices
 
 
 def extract_catalogue_entries(lines: list[str],
                               title_indices: list[list[int]],
-                              title_refs: list[str],
-                              xml_track_df: pd.DataFrame):
+                              title_shelfmarks: list[str],
+                              xml_track_df: pd.DataFrame) -> pd.DataFrame:
     """
     Use catalogue entry indices to extract from the main list of lines
     :param lines:
     :param title_indices:
-    :param title_refs:
+    :param title_shelfmarks:
     :param xml_track_df:
     :return:
     """
-    labels = []
+    xmls = []
+    shelfmarks = []
     entries = []
 
-    for i, idx in tqdm(enumerate(title_indices[:-1])):
-        catalogue_indices = [x for x in range(idx[1], title_indices[i + 1][0])]
-        entries.append([lines[x] for x in catalogue_indices])
+    for i, idx in tqdm(enumerate(title_indices[:-1]), total=len(title_indices) - 1):
+        # take the 1 position in idx and title_indices[i+1] as that's excludes the leading shelfmark and includes the trailing shelfmark
+        # TODO fix this indexing for the first entry?
+        entry = lines[idx[1]: title_indices[i + 1][1]]
+        entries.append(entry)
 
-        xml = xml_track_df.loc[idx[1], "xml"]
-        clean_shelfmark = title_refs[i + 1].replace(".", "_").replace(" ", "")
-        labels.append(f"{xml}_{clean_shelfmark}.txt")
+        xmls.append(xml_track_df.loc[idx[1], "xml"])
+        shelfmarks.append(title_shelfmarks[i + 1])
 
-    return pd.DataFrame(data={"labels": labels, "entries": entries})
+    last_entry = lines[title_indices[-1][1]: len(lines)]
+    entries.append(last_entry)
+    xmls.append(xml_track_df.loc[title_indices[-1][1], "xml"])
+    shelfmarks.append(find_title_shelfmark("".join(last_entry)))
 
+    entry_df = pd.DataFrame(
+        data={"xml": xmls, "shelfmark": shelfmarks, "copy": 1,
+              "entry": entries, "title": title_indices}
+    )
+
+    return entry_df
+
+
+def extract_another_copy():
+    pass
+
+
+# use this for the saving fn to create os friendly file names with shelfmark
+# .replace(".", "_").replace(" ", "")
 
 # Saves all of the text, split into catalogue entries, into text files
 def save_raw_txt(lines: list[str],
                  title_indices: list[list[int]],
-                 title_refs: list[str],
+                 title_shelfmarks: list[str],
                  xml_track_df: pd.DataFrame,
                  out_path: str | os.PathLike) -> None:
 
     if not os.path.exists(out_path):
         os.makedirs(out_path)
 
-    for i, idx in tqdm(enumerate(title_indices[:-1])):
+    for i, idx in tqdm(enumerate(title_indices[:-1]), total=len(title_indices) - 1):
         catalogue_indices = [x for x in range(idx[1], title_indices[i + 1][0])]
 
         source_xml = xml_track_df.loc[idx[1], "xml"]
-        clean_shelfmark = title_refs[i + 1].replace(".", "_").replace(" ", "")
+        clean_shelfmark = title_shelfmarks[i + 1].replace(".", "_").replace(" ", "")
         save_path_file = os.path.join(out_path, f"{source_xml}_{clean_shelfmark}.txt")
 
         with open(save_path_file, "w", encoding="utf-8") as f:
@@ -345,13 +347,12 @@ def generate_xml(lines: list[str],
     xml = minidom.Document()
     text = xml.createElement('text')
 
-    for itr in range(len(title_indices[:-2])):
-        title_indices = title_indices[itr]
-        catalogue_indices = [x for x in range(title_indices[-1], title_indices[itr + 1][0])]
-        full_title = "".join([lines[x] for x in title_indices])
+    for i, idx in tqdm(enumerate(title_indices[:-1]), total=len(title_indices) - 1):
+        catalogue_indices = [x for x in range(idx[1], title_indices[i + 1][0])]
+        full_title = "".join([lines[x] for x in idx])
 
         catalogue_entry = xml.createElement('catalogue_entry')
-        catalogue_entry.setAttribute("SHELFMARK", title_refs[itr + 1])
+        catalogue_entry.setAttribute("SHELFMARK", title_refs[i + 1])
         catalogue_entry.setAttribute("HEADING", full_title)
 
         for catalogue_index in catalogue_indices:
@@ -384,6 +385,7 @@ def save_xml(lines: list[str],
     return None
 
 
+# I prefer manually doing each step in main
 # Saves the raw text files, the text files split by language and the XML files
 def save_all(current_volume, xmls, xml_track_df, all_title_indices, all_lines, path, title_refs):
     out_path = path
@@ -396,3 +398,22 @@ def save_all(current_volume, xmls, xml_track_df, all_title_indices, all_lines, p
     print("Saving split txt files")
     save_split_txt(all_title_indices, all_lines, os.path.join(out_path, "splittextfiles"), title_refs)
     save_xml(all_lines, all_title_indices, title_refs, out_path)
+
+
+# made obsolete by inclusion in find_headings
+def gen_title_refs(lines: list[str], title_indices: list[list[int]]) -> list[str]:
+    """
+    Extracts full titles from the list of all lines
+    For each full title extracts the title reference
+    :param title_indices: list[list[int]]: Indices for all the lines in lines that constitute a title
+    :param lines: A set of Incunabula lines, e.g. from a full volume or a single page
+    :return: list[str]
+    """
+    title_refs = []
+
+    for idx in title_indices:
+        full_title = "".join([lines[x] for x in idx])
+        title_ref = find_title_shelfmark(full_title)
+        title_refs.append(title_ref)
+
+    return title_refs
