@@ -1,5 +1,4 @@
 import os
-import sys
 import glob
 from xml.etree import ElementTree as ET
 from tqdm import tqdm
@@ -10,11 +9,11 @@ if __name__ == '__main__':
     network_loc = "\\\\ad\\collections\\TwoCenturies\\TwoCenturies IV\\Incunabula"
     suffix = "column pages Transkribus export"
 
-    for i in range(8, 9):
+    for i in range(1, 11):
         page_xmls.append(
             [
-                os.path.join(network_loc, f"BMC_{i + 1} 2 {suffix}"),
-                os.path.join(network_loc, f"BMC_{i + 1} 4 {suffix}")
+                os.path.join(network_loc, f"BMC_{i} 2 {suffix}"),
+                os.path.join(network_loc, f"BMC_{i} 4 {suffix}")
             ]
         )
 
@@ -22,9 +21,15 @@ if __name__ == '__main__':
     # 'BMC_5 2 column pages Transkribus export'
 
     for x in page_xmls:
+
+        out_path = os.path.join(
+            network_loc,
+            "split_data",
+            os.path.basename(x[0]).split(" ")[0]
+        )
+
         page_xml_loc_2 = os.path.join(x[0], r"*\*\page\*.xml")
         page_xml_loc_4 = os.path.join(x[1], r"*\*\page\*.xml")
-        out_path = os.path.join(network_loc, "split_data\\test", os.path.basename(x[0]).split(" ")[0] + "_gen_title_refs_refactor")
         attempts = 0
         while attempts < 3:
             xmls_2 = glob.glob(os.fsencode(page_xml_loc_2))
@@ -42,7 +47,7 @@ if __name__ == '__main__':
 
         xmlroots = {}
 
-        print(f"\nGetting xml roots from {os.path.dirname(page_xml_loc_2)}  {os.path.basename(page_xml_loc_2)}/{os.path.basename(page_xml_loc_4)}")
+        print(f"\nGetting xml roots from {page_xml_loc_2.replace(' 2 ',' [2, 4] ')}")
         for file, n_col in tqdm(zip(xmls, n_cols), total=len(xmls)):
             file_name = os.fsdecode(file)
             attempts = 0
@@ -60,30 +65,22 @@ if __name__ == '__main__':
 
         print("\nExtrating catalogue entries from xmls")
         current_volume = {k: xmlroots[k] for k in sorted(xmlroots)}
-        all_lines, xml_track_df = xmle.extract_lines_for_vol(current_volume)
-        all_lines = [line for line in all_lines if line is not None]
-        xml_track_df = xml_track_df.dropna(subset="line")
-        title_shelfmarks, all_title_indices = xmle.find_headings(all_lines)
-        # title_refs = xmle.gen_title_refs(all_lines, all_title_indices)
+        lines, xml_track_df = xmle.extract_lines_for_vol(current_volume)
+        title_shelfmarks, title_indices = xmle.find_headings(lines)
+        entry_df = xmle.extract_catalogue_entries(lines, title_indices, title_shelfmarks, xml_track_df)
+        print(f"Extracted {len(entry_df)} entries")
 
-        print(f"\nSaving catalogue entries to {out_path}\n")
+        # fname = r"\\ad\collections\TwoCenturies\TwoCenturies IV\Incunabula\split_data\test\BMC_9_gen_title_refs_refactor\catalogue_entries.csv"
+        # entry_df = pd.read_csv(fname, converters={"entry": lambda x: x[2:-2].split("\', \'")})
+
+        print(f"Saving catalogue entries to {out_path}")
         if not os.path.exists(out_path):
             os.makedirs(out_path)
 
-        xmle.save_poorly_scanned_pages(xmle.get_poorly_scanned_pages(current_volume, xmls), out_path)
-        print("Saving raw txt files")
-        xmle.save_raw_txt(all_lines, all_title_indices, title_shelfmarks, xml_track_df,
-                          os.path.join(out_path, "rawtextfiles"))
-        # print("Saving split txt files")
-        # xmle.saveSplitTxt(allTitleIndices, allLines, os.path.join(out_path, "splittextfiles"), titleRefs)
-        xmle.save_xml(all_lines, all_title_indices, title_shelfmarks, out_path)
-
-        # xmle.saveAll(
-        #     currentVolume=currentVolume,
-        #     xmls=xmls,
-        #     xml_track_df=xml_track_df,
-        #     allTitleIndices=allTitleIndices,
-        #     allLines=allLines,
-        #     path=out_path,
-        #     titleRefs=titleRefs
-        # )
+        entry_df.to_csv(os.path.join(out_path, "catalogue_entries_leading_caps.csv"), index=False)
+        # xmle.save_poorly_scanned_pages(xmle.get_poorly_scanned_pages(current_volume, xmls), out_path)
+        # print("Saving raw txt files")
+        # # entry_df.groupby(by=["xml", "shelfmark"]).progress_apply(lambda x: xmle.groupby_save(x, outpath))
+        # # print("Saving split txt files")
+        # # xmle.saveSplitTxt(allTitleIndices, allLines, os.path.join(out_path, "splittextfiles"), titleRefs)
+        # xmle.save_xml(lines, title_indices, title_shelfmarks, out_path)
