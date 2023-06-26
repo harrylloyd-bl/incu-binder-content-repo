@@ -149,12 +149,11 @@ def test_find_title_shelfmark(capsys):
     found_mark_c = xmle.find_title_shelfmark(full_title_c)
 
     # next one should print "Unrecognized title format" to stdout
-    _ = xmle.find_title_shelfmark(bad_title)
-    captured = capsys.readouterr()
+    bad_res = xmle.find_title_shelfmark(bad_title)
 
     assert found_mark_i == "IB. 1345."
     assert found_mark_c == "C.145132.a"
-    assert captured.out == "Unrecognized title format\n"
+    assert not bad_res
 
 
 # def test_gen_title_refs(lines, indices):
@@ -179,7 +178,8 @@ def test_extract_catalogue_entries(lines, indices):
     title_shelfmarks, _ = xmle.find_headings(lines)
     catalogue_entries = xmle.extract_catalogue_entries(lines, indices, title_shelfmarks, xml_track_df)
 
-    assert catalogue_entries.shape == (2, 5)
+    assert catalogue_entries.shape == (2, 6)
+    assert catalogue_entries.columns.tolist() == ["xml", "shelfmark", "copy", "entry", "title", "entry_text"]
     assert catalogue_entries["xml"].tolist() == ["title_xml_example", "title_xml_example"]
     assert catalogue_entries["shelfmark"].tolist() == ["IA. 789SE", "IA. 353"]
     assert catalogue_entries["copy"].sum() == catalogue_entries.shape[0]
@@ -189,7 +189,8 @@ def test_extract_catalogue_entries(lines, indices):
     assert catalogue_entries.loc[1, "entry"][0] == "SECONDTITLE"
     assert catalogue_entries.loc[1, "entry"][-1] == "IA. 353"
 
-
+"""
+Obsolete as now using df groupby/apply
 def test_save_raw_txt(tmp_path, lines, titles, indices):
     root = ET.parse("tests\\title_xml_example.xml").getroot()
     _, xml_track_df = xmle.extract_lines_for_vol({"title_xml_example": root})
@@ -215,3 +216,4 @@ def test_save_raw_txt(tmp_path, lines, titles, indices):
     assert len(saved_lines) == 5
     assert saved_lines[0] == "TITLE\n"
     assert saved_lines[-1] == "TITLE\n"
+"""
