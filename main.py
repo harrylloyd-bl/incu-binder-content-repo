@@ -4,8 +4,8 @@ from src.data import xml_extraction as xmle
 if __name__ == '__main__':
 
     for i in range(1, 3):
-        two_col_loc = f"C:\\Users\\HLloyd\\Documents\\Incunabula-Catalogue-Entry-Detection\\data\\raw\\BMC_{i}\\BMC_{i}_2_column_model_output\\page"
-        four_col_loc = f"C:\\Users\\HLloyd\\Documents\\Incunabula-Catalogue-Entry-Detection\\data\\raw\\BMC_{i}\\BMC_{i}_4_column_model_output\\page"
+        two_col_loc = f"data\\raw\\BMC_{i}\\BMC_{i}_2_column_model_output\\page"
+        four_col_loc = f"data\\raw\\BMC_{i}\\BMC_{i}_4_column_model_output\\page"
         current_volume = xmle.gather_2_4_col_xmls(two_col_loc, four_col_loc)
 
         print("\nExtrating catalogue entries from xmls")
