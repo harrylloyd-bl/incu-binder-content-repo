@@ -1,11 +1,61 @@
 import os
 import re
+import glob
 from xml.dom import minidom
 import numpy as np
 import pandas as pd
 from langdetect import detect
 from tqdm import tqdm
 from xml.etree import ElementTree as ET
+
+
+def gather_2_4_col_xmls(two_col_loc: str|os.PathLike, four_col_loc: str|os.PathLike):
+    """
+    Collect and correctly sort all the 2 col and 4 col xmls from a network root
+    :param two_col_loc: str : A location of two column transkribus model output xmls
+    :param four_col_loc: str: A location of four column transkribus model output xmls
+    :return: dict[xml.etree.ET]
+    """
+
+    page_xml_loc_2 = os.path.join(two_col_loc, "*.xml")
+    page_xml_loc_4 = os.path.join(four_col_loc, "*.xml")
+
+    attempts = 0
+    while attempts < 3:
+        xmls_2 = glob.glob(page_xml_loc_2)
+        xmls_4 = glob.glob(page_xml_loc_4)
+
+        if xmls_2 and xmls_4:
+            xmls = xmls_2 + xmls_4
+            break
+        else:
+            attempts += 1
+            continue
+    else:
+        raise IOError(
+            f"Failed to connect to {os.path.dirname(page_xml_loc_2)}  {os.path.basename(page_xml_loc_2)}/{os.path.basename(page_xml_loc_4)}")
+
+    xmls_sorted = sorted(xmls, key=lambda x:int(x[-8:-4]))
+    xmlroots = {}
+
+    print(f"\nGetting xml roots from {page_xml_loc_2.replace('_2_', '_[2, 4]_')}")
+    for xml in tqdm(xmls_sorted):
+        attempts = 0
+        while attempts < 3:
+            try:
+                tree = ET.parse(xml)
+                break
+            except FileNotFoundError:
+                attempts += 1
+                continue
+        else:
+            raise FileNotFoundError(f"Failed to connect to: {xml}")
+        root = tree.getroot()
+        p = re.compile("_[24]_column_model")
+        n_cols = p.search(xml).group()[1]
+        xmlroots[os.path.basename(xml)[5:-4] + f"_{n_cols}"] = root  # take the label that spans different sections of a volume
+
+    return xmlroots
 
 
 def extract_lines(root: ET.Element) -> list[str]:
