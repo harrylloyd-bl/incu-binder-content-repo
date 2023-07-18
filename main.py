@@ -14,10 +14,7 @@ if __name__ == '__main__':
         entry_df = xmle.extract_catalogue_entries(lines, title_indices, title_shelfmarks, xml_track_df)
         print(f"Extracted {len(entry_df)} entries")
 
-        out_path = "data\\processed\\BMC_{i}"
-        if not os.path.exists(out_path):
-            os.makedirs(out_path)
-
+        out_path = f"data\\processed\\BMC_{i}"
         print(f"Saving catalogue entries to {out_path}")
         if not os.path.exists(out_path):
             os.makedirs(out_path)
