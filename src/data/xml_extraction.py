@@ -9,7 +9,7 @@ from tqdm import tqdm
 from xml.etree import ElementTree as ET
 
 
-def gather_2_4_col_xmls(two_col_loc: str|os.PathLike, four_col_loc: str|os.PathLike):
+def gather_2_4_col_xmls(two_col_loc: str|os.PathLike, four_col_loc: str|os.PathLike) -> dict[str: ET.ElementTree]:  # TODO add correct return type hint
     """
     Collect and correctly sort all the 2 col and 4 col xmls from a network root
     :param two_col_loc: str : A location of two column transkribus model output xmls
@@ -68,7 +68,7 @@ def extract_lines(root: ET.Element) -> list[str]:
 
     text_regions = [x for x in root[1] if len(x) > 2]  # Empty Text Regions Removed
 
-    if len(text_regions) % 2 == 0:
+    if len(text_regions) % 2 == 0:  # TODO really understand why this is necessary # this would be a very good point to have one of those comments that explains a design decision
         half = int(len(text_regions) / 2)
         new_text_regions = []
         for x in range(half):
@@ -107,7 +107,7 @@ def extract_lines_for_vol(vol: dict[str: ET.Element]) -> tuple[list[str], pd.Dat
     return lines, xml_track_df
 
 
-# Regular expressions used to detect headings
+# Regular expressions used to detect headings # TODO do this development on a regex specific branch so the dev process for new regexes is preserved in one place
 caps_regex = re.compile("[A-Z][A-Z](?!I)[A-Z]+")
 c_num_regex = re.compile("[^A-Za-z0-9\\n\.\-\u201C]C\\.[ ]?[0-9]")  # C number title references
 # c_num_regex = re.compile("C\\.[0-9]")  # C number title references
@@ -116,7 +116,7 @@ g_num_regex = re.compile("G.\\s[0-9]")
 i_num_regex = re.compile("I[ABC]\\.[ ]?[0-9]")  # I number title references
 date_regex = re.compile("1[45][0-9][0-9]")
 
-
+# TODO intro to this brief section of functions explaining that these are for checking regexs
 def shelfmark_check(line: str) -> re.Match[str] | None | bool:
     """
     Looks for identifying marks of a catalogue heading beginning
@@ -141,8 +141,8 @@ def date_check(line: str) -> re.Match | str | None:
         return False
 
 
-def get_i_num_title(full_title: str) -> str:
-    """
+def get_i_num_title(full_title: str) -> str:  # TODO full_title isn't defined until 342 - have a better argument name here
+    """ # TODO have comment explaining [:14] and [:9]/[:10] as design decisions
     Extracts the title reference number from a line for I numbers (e.g. IB929)
     :param full_title:
     :return:
