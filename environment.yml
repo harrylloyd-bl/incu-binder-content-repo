@@ -9,6 +9,7 @@ dependencies:
   - openssl
   - pandas
   - nbgitpuller
+  - matplotlib
   - pip:
       - langdetect
 prefix: C:\Users\HLloyd\AppData\Local\mambaforge\envs\incu
