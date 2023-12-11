@@ -9,3 +9,6 @@ data/
 
 # pycharm
 .idea/
+
+# tkb credentials
+notebooks/Transkribus_credential.py
