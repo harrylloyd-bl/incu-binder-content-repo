@@ -2,7 +2,6 @@ import src.data.xml_extraction as xmle
 from xml.etree import ElementTree as ET
 import os
 import glob
-import pdb
 import pytest
 from tqdm import tqdm
 from functools import partialmethod
@@ -89,6 +88,7 @@ def test_find_shelfmark():
     assert not bad_lower
     assert not bad_caps
 
+
 def test_date_check():
     date_check = xmle.date_check("1409")
     untitled_check = xmle.date_check("Undated")
@@ -99,36 +99,12 @@ def test_date_check():
     assert not bad_check
 
 
-# def test_get_i_num_title():
-#     i_num = xmle.get_i_num_title("IA.123456aaa")
-#     i_num_2_fullstop = xmle.get_i_num_title("IA.123.wrong.answer")
-#
-#     assert i_num == "IA.123456"
-#     assert i_num_2_fullstop == "IA.123"
-#
-#
-# def test_get_g_num_title():
-#     g_num = xmle.get_i_num_title("G.123456aaa")
-#     g_num_2_fullstop = xmle.get_i_num_title("G.123.wrong.answer")
-#
-#     assert g_num == "G.123456"
-#     assert g_num_2_fullstop == "G.123"
-#
-#
-# def test_get_c_num_title():
-#     c_num = xmle.get_c_num_title("C.123456aaa")
-#     c_num_4_fullstop = xmle.get_c_num_title("C.12.3.more.shelfmark.here")
-#
-#     assert c_num == "C.123456aa"
-#     assert c_num_4_fullstop == "C.12.3.more"
-
-
-
 # separate so easier to see their values in tests
 fix_in_xml = ET.parse("tests\\title_xml_example.xml")
 fix_root = fix_in_xml.getroot()
 fix_lines = xmle.extract_lines(fix_root)
 fix_titles, fix_title_indices = ["IA. 123.TITLE1456", "IA. 789.SECONDTITLE1506"], [[0, 1, 2], [6, 7, 8]]
+
 
 @pytest.fixture()
 def lines():
@@ -167,7 +143,7 @@ def test_find_headings(xml_roots, lines, titles, indices):
     title_shelfmarks, indices = xmle.find_headings(lines)
 
     assert len(title_shelfmarks), len(indices) == (2, 2)
-    assert title_shelfmarks == ["IA. 123TI", "IA. 789SE"]
+    assert title_shelfmarks == ["IA. 123", "IA. 789"]
     assert indices == [[0, 1, 2], [6, 7, 8]]
 
 
@@ -180,13 +156,13 @@ def test_extract_catalogue_entries(lines, indices):
     assert catalogue_entries.shape == (2, 6)
     assert catalogue_entries.columns.tolist() == ["xml", "vol_entry_num", "shelfmark", "entry", "title", "entry_text"]  # "copy"
     assert catalogue_entries["xml"].tolist() == ["title_xml_example", "title_xml_example"]
-    assert catalogue_entries["shelfmark"].tolist() == ["IA. 789SE", "IA. 353"]
+    assert catalogue_entries["shelfmark"].tolist() == ["IA. 789", "IA. 353"]
     # assert catalogue_entries["copy"].sum() == catalogue_entries.shape[0]
     assert catalogue_entries["entry"].transform(len).tolist() == [6, 3]
     assert catalogue_entries.loc[0, "entry"][0] == "TITLE"
-    assert catalogue_entries.loc[0, "entry"][-1] == "IA. 789"
+    assert catalogue_entries.loc[0, "entry"][-1] == "IA. 789."
     assert catalogue_entries.loc[1, "entry"][0] == "SECONDTITLE"
-    assert catalogue_entries.loc[1, "entry"][-1] == "IA. 353"
+    assert catalogue_entries.loc[1, "entry"][-1] == "IA. 353."
 
 
 def test_generate_xml(): # TODO update once generate_xml has been updated
@@ -197,31 +173,3 @@ def test_generate_xml(): # TODO update once generate_xml has been updated
 
     # out_xml = xmle.generate_xml(all_title_indices, all_lines, )
 
-"""
-Obsolete as now using df groupby/apply
-def test_save_raw_txt(tmp_path, lines, titles, indices):
-    root = ET.parse("tests\\title_xml_example.xml").getroot()
-    _, xml_track_df = xmle.extract_lines_for_vol({"title_xml_example": root})
-    lines, indices = lines, indices
-    title_shelfmarks, _ = xmle.find_headings(lines)
-    title_shelfmarks += ["IA. 353"]
-    print(title_shelfmarks)
-    lines += ["", "IA. 666", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]
-    indices += [[10, 11, 12]]  # need an extra set due to [:-1] indexing in save_raw_txt
-    out_path = tmp_path
-
-    xmle.save_raw_txt(lines, indices, title_shelfmarks, xml_track_df, out_path)
-
-    filepath_1 = tmp_path.joinpath(f"{xml_track_df.iloc[0, 0]}_IA_789SE.txt")
-    filepath_2 = tmp_path.joinpath(f"{xml_track_df.iloc[0,0]}_IA_353.txt")
-
-    assert os.path.exists(filepath_1)
-    assert os.path.exists(filepath_2)
-
-    with open(filepath_1) as f:
-        saved_lines = f.readlines()
-
-    assert len(saved_lines) == 5
-    assert saved_lines[0] == "TITLE\n"
-    assert saved_lines[-1] == "TITLE\n"
-"""

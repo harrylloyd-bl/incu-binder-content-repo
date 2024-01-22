@@ -216,7 +216,7 @@ def extract_catalogue_entries(lines: list[str],
     last_entry = lines[title_indices[-1][1]: len(lines)]
     entries.append(last_entry)
     xmls.append(xml_track_df.loc[title_indices[-1][1], "xml"])
-    shelfmarks.append(find_shelfmark("".join(last_entry)))
+    shelfmarks.append(find_shelfmark(" ".join(last_entry)))
 
     entry_df = pd.DataFrame(
         data={"xml": xmls, "shelfmark": shelfmarks, # "copy": 1,
@@ -418,64 +418,5 @@ def save_xml(lines: list[str],
     with open(save_path_file, "w", encoding="utf-8") as f:
         f.write(xml_str)
         f.close()
-
-    return None
-
-### Obsolete
-
-# I prefer manually doing each step in main
-# Saves the raw text files, the text files split by language and the XML files
-def save_all(current_volume, xmls, xml_track_df, all_title_indices, all_lines, path, title_refs):
-    out_path = path
-    if not os.path.exists(out_path):
-        os.makedirs(out_path)
-
-    save_poorly_scanned_pages(get_poorly_scanned_pages(current_volume, xmls), out_path)
-    print("Saving raw txt files")
-    save_raw_txt(all_lines, all_title_indices, title_refs, xml_track_df, os.path.join(out_path, "rawtextfiles"))
-    print("Saving split txt files")
-    save_split_txt(all_title_indices, all_lines, os.path.join(out_path, "splittextfiles"), title_refs)
-    save_xml(all_lines, all_title_indices, title_refs, out_path)
-
-
-# made obsolete by inclusion in find_headings
-def gen_title_refs(lines: list[str], title_indices: list[list[int]]) -> list[str]:
-    """
-    Extracts full titles from the list of all lines
-    For each full title extracts the title reference
-    :param title_indices: list[list[int]]: Indices for all the lines in lines that constitute a title
-    :param lines: A set of Incunabula lines, e.g. from a full volume or a single page
-    :return: list[str]
-    """
-    title_refs = []
-
-    for idx in title_indices:
-        full_title = "".join([lines[x] for x in idx])
-        title_ref = find_shelfmark(full_title)
-        title_refs.append(title_ref)
-
-    return title_refs
-
-
-# Saves all of the text, split into catalogue entries, into text files
-def save_raw_txt(lines: list[str],
-                 title_indices: list[list[int]],
-                 title_shelfmarks: list[str],
-                 xml_track_df: pd.DataFrame,
-                 out_path: str | os.PathLike) -> None:
-
-    if not os.path.exists(out_path):
-        os.makedirs(out_path)
-
-    for i, idx in tqdm(enumerate(title_indices[:-1]), total=len(title_indices) - 1):
-        catalogue_indices = [x for x in range(idx[1], title_indices[i + 1][0])]
-
-        source_xml = xml_track_df.loc[idx[1], "xml"]
-        clean_shelfmark = title_shelfmarks[i + 1].replace(".", "_").replace(" ", "")
-        save_path_file = os.path.join(out_path, f"{source_xml}_{clean_shelfmark}.txt")
-
-        with open(save_path_file, "w", encoding="utf-8") as f:
-            for line_index in catalogue_indices:
-                f.write(lines[line_index] + "\n")
 
     return None
