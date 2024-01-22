@@ -2,6 +2,7 @@ import src.data.xml_extraction as xmle
 from xml.etree import ElementTree as ET
 import os
 import glob
+import pdb
 import pytest
 from tqdm import tqdm
 from functools import partialmethod
@@ -17,6 +18,21 @@ def xml_roots():
         root = tree.getroot()
         xml_roots[os.path.basename(xml)[:-4]] = root
     return {k: xml_roots[k] for k in sorted(xml_roots)}
+
+
+def test_gen_2_4_col_xml_paths():
+    xmls = xmle.gen_2_4_col_xml_paths("tests\\BMC_3_2", "tests\\BMC_3_4")
+    assert xmls[0] == ["tests\\BMC_3_2\\J_2704_aa_30_3_0052.pxml"]
+    assert xmls[1] == ["tests\\BMC_3_4\\J_2704_aa_30_3_0053.pxml"]
+
+
+def test_gen_2_4_col_xml_trees():
+    xml_2 = ["tests\\BMC_3_2\\J_2704_aa_30_3_0052.pxml"]
+    xml_4 = ["tests\\BMC_3_4\\J_2704_aa_30_3_0053.pxml"]
+    roots = xmle.gen_2_4_col_xml_trees(xml_2, xml_4)
+    assert len(roots) == 2
+    assert list(roots.keys()) == ["J_2704_aa_30_3_0052_2", "J_2704_aa_30_3_0053_4"]
+    assert type(roots["J_2704_aa_30_3_0052_2"]) == ET.Element
 
 
 def test_extract_lines(xml_roots):
@@ -48,15 +64,30 @@ def test_extract_lines_for_vol(xml_roots):
     ]
 
 
-def test_check_line():
-    i_num_check = xmle.shelfmark_check("IA. 33")
-    c_num_check = xmle.shelfmark_check("C.44")
-    bad_check = xmle.shelfmark_check("asdf")
+def test_find_shelfmark():
+    ia_sm = xmle.find_shelfmark("IA. 33.")
+    ic_sm = xmle.find_shelfmark("IC. 3. a. 4.")
+    i_letter_sm = xmle.find_shelfmark("IC. a3.")
+    preceding_letter_i_sm = xmle.find_shelfmark("ASDFIB. 1345.")
 
-    assert i_num_check
-    assert c_num_check
-    assert not bad_check
+    c_brackets_sm = xmle.find_shelfmark("(C.44.)")
+    c_space_sm = xmle.find_shelfmark(" C. 15632. ")
+    preceding_letter_c_sm = xmle.find_shelfmark("aC. 15632.")
 
+    bad_lower = xmle.find_shelfmark("asdf")
+    bad_caps = xmle.find_shelfmark("NOTHINGTOSEEHERE")
+
+    assert ia_sm == "IA. 33"
+    assert ic_sm == "IC. 3. a. 4"
+    assert i_letter_sm == "IC. a3"
+    assert preceding_letter_i_sm is None
+
+    assert c_brackets_sm == "C.44"
+    assert c_space_sm == "C. 15632"
+    assert preceding_letter_c_sm is None
+
+    assert not bad_lower
+    assert not bad_caps
 
 def test_date_check():
     date_check = xmle.date_check("1409")
@@ -68,22 +99,44 @@ def test_date_check():
     assert not bad_check
 
 
+# def test_get_i_num_title():
+#     i_num = xmle.get_i_num_title("IA.123456aaa")
+#     i_num_2_fullstop = xmle.get_i_num_title("IA.123.wrong.answer")
+#
+#     assert i_num == "IA.123456"
+#     assert i_num_2_fullstop == "IA.123"
+#
+#
+# def test_get_g_num_title():
+#     g_num = xmle.get_i_num_title("G.123456aaa")
+#     g_num_2_fullstop = xmle.get_i_num_title("G.123.wrong.answer")
+#
+#     assert g_num == "G.123456"
+#     assert g_num_2_fullstop == "G.123"
+#
+#
+# def test_get_c_num_title():
+#     c_num = xmle.get_c_num_title("C.123456aaa")
+#     c_num_4_fullstop = xmle.get_c_num_title("C.12.3.more.shelfmark.here")
+#
+#     assert c_num == "C.123456aa"
+#     assert c_num_4_fullstop == "C.12.3.more"
+
+
+
 # separate so easier to see their values in tests
 fix_in_xml = ET.parse("tests\\title_xml_example.xml")
 fix_root = fix_in_xml.getroot()
 fix_lines = xmle.extract_lines(fix_root)
-fix_titles, fix_title_indices = ["IA. 123TITLE1456", "IA. 789SECONDTITLE1506"], [[0, 1, 2], [6, 7, 8]]
-
+fix_titles, fix_title_indices = ["IA. 123.TITLE1456", "IA. 789.SECONDTITLE1506"], [[0, 1, 2], [6, 7, 8]]
 
 @pytest.fixture()
 def lines():
     return fix_lines
 
-
 @pytest.fixture()
 def titles():
     return fix_titles
-
 
 @pytest.fixture()
 def indices():
@@ -118,60 +171,6 @@ def test_find_headings(xml_roots, lines, titles, indices):
     assert indices == [[0, 1, 2], [6, 7, 8]]
 
 
-def test_get_i_num_title():
-    full_title_onestop = "IA. 31234ASDF"
-    full_title_twostop = "IA. 31234.ASDF.LKJH"
-
-    title_onestop = xmle.get_i_num_title(full_title_onestop)
-    title_twostop = xmle.get_i_num_title(full_title_twostop)
-
-    assert title_onestop == "IA. 31234"
-    assert title_twostop == "IA. 31234"
-
-
-def test_get_c_num_title():
-    full_title_onestop = "C. 312341"
-    full_title_fourstop = "C.31.a.2.3.ASDF"
-
-    title_onestop = xmle.get_c_num_title(full_title_onestop)
-    title_fourstop = xmle.get_c_num_title(full_title_fourstop)
-
-    assert title_onestop == "C. 312341"
-    assert title_fourstop == "C.31.a.2"
-
-
-def test_find_title_shelfmark(capsys):
-    full_title_i = "ASDFIB. 1345/"
-    full_title_c = "ASDFC.145132/a"
-    bad_title = "NOTHINGCAPTUREDHERE"
-
-    found_mark_i = xmle.find_title_shelfmark(full_title_i)
-    found_mark_c = xmle.find_title_shelfmark(full_title_c)
-
-    # next one should print "Unrecognized title format" to stdout
-    bad_res = xmle.find_title_shelfmark(bad_title)
-
-    assert found_mark_i == "IB. 1345."
-    assert found_mark_c == "C.145132.a"
-    assert not bad_res
-
-
-# def test_gen_title_refs(lines, indices):
-#     title_refs = xmle.gen_title_refs(lines, indices)
-#
-#     assert len(title_refs) == 2
-#     assert title_refs == ["IA. 123TI", "IA. 789SE"]
-
-
-def test_generate_xml():
-    in_xml = ET.parse("tests\\title_xml_example.xml")
-    root = in_xml.getroot()
-    all_lines = xmle.extract_lines(root)
-    title, all_title_indices = xmle.find_headings(all_lines)
-
-    # out_xml = xmle.generateXML(all_title_indices, all_lines, )
-
-
 def test_extract_catalogue_entries(lines, indices):
     root = ET.parse("tests\\title_xml_example.xml").getroot()
     lines, xml_track_df = xmle.extract_lines_for_vol({"title_xml_example": root})
@@ -179,15 +178,24 @@ def test_extract_catalogue_entries(lines, indices):
     catalogue_entries = xmle.extract_catalogue_entries(lines, indices, title_shelfmarks, xml_track_df)
 
     assert catalogue_entries.shape == (2, 6)
-    assert catalogue_entries.columns.tolist() == ["xml", "shelfmark", "copy", "entry", "title", "entry_text"]
+    assert catalogue_entries.columns.tolist() == ["xml", "vol_entry_num", "shelfmark", "entry", "title", "entry_text"]  # "copy"
     assert catalogue_entries["xml"].tolist() == ["title_xml_example", "title_xml_example"]
     assert catalogue_entries["shelfmark"].tolist() == ["IA. 789SE", "IA. 353"]
-    assert catalogue_entries["copy"].sum() == catalogue_entries.shape[0]
+    # assert catalogue_entries["copy"].sum() == catalogue_entries.shape[0]
     assert catalogue_entries["entry"].transform(len).tolist() == [6, 3]
     assert catalogue_entries.loc[0, "entry"][0] == "TITLE"
     assert catalogue_entries.loc[0, "entry"][-1] == "IA. 789"
     assert catalogue_entries.loc[1, "entry"][0] == "SECONDTITLE"
     assert catalogue_entries.loc[1, "entry"][-1] == "IA. 353"
+
+
+def test_generate_xml(): # TODO update once generate_xml has been updated
+    in_xml = ET.parse("tests\\title_xml_example.xml")
+    root = in_xml.getroot()
+    all_lines = xmle.extract_lines(root)
+    title, all_title_indices = xmle.find_headings(all_lines)
+
+    # out_xml = xmle.generate_xml(all_title_indices, all_lines, )
 
 """
 Obsolete as now using df groupby/apply

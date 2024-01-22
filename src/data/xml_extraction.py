@@ -2,6 +2,7 @@ import os
 import re
 import glob
 from xml.dom import minidom
+from functools import partial
 import numpy as np
 import pandas as pd
 from langdetect import detect
@@ -9,16 +10,15 @@ from tqdm import tqdm
 from xml.etree import ElementTree as ET
 
 
-def gather_2_4_col_xmls(two_col_loc: str|os.PathLike, four_col_loc: str|os.PathLike) -> dict[str: ET.ElementTree]:  # TODO add correct return type hint
+def gen_2_4_col_xml_paths(two_col_loc: str|os.PathLike, four_col_loc: str|os.PathLike) -> (list[str], list[str]):
     """
-    Collect and correctly sort all the 2 col and 4 col xmls from a network root
+    Collect and all the 2 col and 4 col xmls from a network root
     :param two_col_loc: str : A location of two column transkribus model output xmls
     :param four_col_loc: str: A location of four column transkribus model output xmls
-    :return: dict[xml.etree.ET]
+    :return: list[str], list[str]
     """
-
-    page_xml_loc_2 = os.path.join(two_col_loc, "*.xml")
-    page_xml_loc_4 = os.path.join(four_col_loc, "*.xml")
+    page_xml_loc_2 = os.path.join(two_col_loc, "*.pxml")
+    page_xml_loc_4 = os.path.join(four_col_loc, "*.pxml")
 
     attempts = 0
     while attempts < 3:
@@ -26,7 +26,6 @@ def gather_2_4_col_xmls(two_col_loc: str|os.PathLike, four_col_loc: str|os.PathL
         xmls_4 = glob.glob(page_xml_loc_4)
 
         if xmls_2 and xmls_4:
-            xmls = xmls_2 + xmls_4
             break
         else:
             attempts += 1
@@ -35,10 +34,20 @@ def gather_2_4_col_xmls(two_col_loc: str|os.PathLike, four_col_loc: str|os.PathL
         raise IOError(
             f"Failed to connect to {os.path.dirname(page_xml_loc_2)}  {os.path.basename(page_xml_loc_2)}/{os.path.basename(page_xml_loc_4)}")
 
-    xmls_sorted = sorted(xmls, key=lambda x:int(x[-8:-4]))
+    return xmls_2, xmls_4
+
+
+def gen_2_4_col_xml_trees(two_col_xmls: list[str], four_col_xmls: list[str]) -> dict[str: ET.ElementTree]:  # TODO add correct return type hint
+    """
+    Collect and correctly sort all the 2 col and 4 col xmls from a network root
+    :param two_col_xmls: str : A location of two column transkribus model output xmls
+    :param four_col_xmls: str: A location of four column transkribus model output xmls
+    :return: dict[xml.etree.ET]
+    """
+    xmls = two_col_xmls + four_col_xmls
+    xmls_sorted = sorted(xmls, key=lambda x: int(x[-9:-5]))
     xmlroots = {}
 
-    print(f"\nGetting xml roots from {page_xml_loc_2.replace('_2_', '_[2, 4]_')}")
     for xml in tqdm(xmls_sorted):
         attempts = 0
         while attempts < 3:
@@ -51,9 +60,9 @@ def gather_2_4_col_xmls(two_col_loc: str|os.PathLike, four_col_loc: str|os.PathL
         else:
             raise FileNotFoundError(f"Failed to connect to: {xml}")
         root = tree.getroot()
-        p = re.compile("_[24]_column_model")
-        n_cols = p.search(xml).group()[1]
-        xmlroots[os.path.basename(xml)[5:-4] + f"_{n_cols}"] = root  # take the label that spans different sections of a volume
+        p = re.compile(r"BMC_\d_[24]")
+        n_cols = p.search(xml).group()[-1]
+        xmlroots[os.path.basename(xml)[:-5] + f"_{n_cols}"] = root  # take the label that spans different sections of a volume
 
     return xmlroots
 
@@ -107,29 +116,17 @@ def extract_lines_for_vol(vol: dict[str: ET.Element]) -> tuple[list[str], pd.Dat
     return lines, xml_track_df
 
 
-# Regular expressions used to detect headings # TODO do this development on a regex specific branch so the dev process for new regexes is preserved in one place
+# Regular expressions used to detect headings
 caps_regex = re.compile("[A-Z][A-Z](?!I)[A-Z]+")
-c_num_regex = re.compile("[^A-Za-z0-9\\n\.\-\u201C]C\\.[ ]?[0-9]")  # C number title references
-# c_num_regex = re.compile("C\\.[0-9]")  # C number title references
-one_num_regex = re.compile("1\\.\\s[a-z]")
-g_num_regex = re.compile("G.\\s[0-9]")
-i_num_regex = re.compile("I[ABC]\\.[ ]?[0-9]")  # I number title references
+
+ig_regex = re.compile(r"(?<![A-Za-z0-9\n\-\u201C.])(I[ABC]|G)([\.,] ?[a-z0-9-]*)*(?=[.,])")
+c_num_regex = re.compile(r"(?<![A-Za-z0-9\n\-\u201C.])(?<=[( ])C([\.,] ?[a-z0-9-]*)*(?=[.,][ )])")
+
+one_num_regex = re.compile(r"1\.\s[a-z]")
 date_regex = re.compile("1[45][0-9][0-9]")
 
-# TODO intro to this brief section of functions explaining that these are for checking regexs
-def shelfmark_check(line: str) -> re.Match[str] | None | bool:
-    """
-    Looks for identifying marks of a catalogue heading beginning
-    :param line:
-    :return:
-    """
-    if line:
-        return i_num_regex.search(line) or c_num_regex.search(line)
-    else:
-        return False
 
-
-def date_check(line: str) -> re.Match | str | None:
+def date_check(line: str) -> re.Match | str | bool:
     """
     Looks for identifying marks of a catalogue heading ending
     :param line:
@@ -141,44 +138,18 @@ def date_check(line: str) -> re.Match | str | None:
         return False
 
 
-def get_i_num_title(full_title: str) -> str:  # TODO full_title isn't defined until 342 - have a better argument name here
-    """ # TODO have comment explaining [:14] and [:9]/[:10] as design decisions
-    Extracts the title reference number from a line for I numbers (e.g. IB929)
-    :param full_title:
-    :return:
-    """
-    if full_title[:14].count(".") >= 2:
-        return ".".join(full_title.split(".")[:2])
-    else:
-        return full_title[:9]
-
-
-def get_c_num_title(full_title: str) -> str:
-    """
-    Extracts the title reference number from a line for C numbers (only found in 1 volume)
-    :param full_title:
-    :return:
-    """
-    if full_title[:14].count(".") >= 4:
-        return ".".join(full_title.split(".")[:4])
-    else:
-        return full_title[:10]
-
-
-def find_title_shelfmark(title: str) -> str:
+def _find_shelfmark(title: str, res: list[re.Pattern]) -> str | None:
     """
     Finds the associated title reference from a given line
     :param title:
+    :param res: regexes - list[re.pattern]
     :return:
     """
-    if i_num_regex.search(title) is not None:
-        shelfmark = get_i_num_title(title[i_num_regex.search(title).start():])
-        return shelfmark.replace("/", ".")
-    elif c_num_regex.search(title) is not None:
-        shelfmark = get_c_num_title(title[c_num_regex.search(title).start():])
-        return shelfmark.replace("/", ".")
-    else:
-        return None
+    for re in res:
+        if re.search(title):
+            return re.search(title).group()
+
+find_shelfmark = partial(_find_shelfmark, res=[ig_regex, c_num_regex])
 
 
 def find_headings(lines: list[str]) -> tuple[list[str], list[list[int]]]:
@@ -192,13 +163,13 @@ def find_headings(lines: list[str]) -> tuple[list[str], list[list[int]]]:
 
     # TODO include the first catalogue entry as well
     for i, l in enumerate(lines):
-        if shelfmark_check(l):
+        if find_shelfmark(l):
             title = l
             title_index = [i]
             j = 1
             while i + j < len(lines) and j < 8:
                 title_part = lines[i + j]
-                if shelfmark_check(title_part):  # If a new catalogue entry begins during the current title
+                if find_shelfmark(title_part):  # If a new catalogue entry begins during the current title
                     j = 1
                     break
 
@@ -212,7 +183,7 @@ def find_headings(lines: list[str]) -> tuple[list[str], list[list[int]]]:
                     j = 1
                     break
 
-    title_shelfmarks = [find_title_shelfmark(t) for t in titles]
+    title_shelfmarks = [find_shelfmark(t) for t in titles]
 
     return title_shelfmarks, title_indices
 
@@ -245,13 +216,14 @@ def extract_catalogue_entries(lines: list[str],
     last_entry = lines[title_indices[-1][1]: len(lines)]
     entries.append(last_entry)
     xmls.append(xml_track_df.loc[title_indices[-1][1], "xml"])
-    shelfmarks.append(find_title_shelfmark("".join(last_entry)))
+    shelfmarks.append(find_shelfmark("".join(last_entry)))
 
     entry_df = pd.DataFrame(
-        data={"xml": xmls, "shelfmark": shelfmarks, "copy": 1,
+        data={"xml": xmls, "shelfmark": shelfmarks, # "copy": 1,
               "entry": entries, "title": title_indices}
     )
     entry_df["entry_text"] = entry_df["entry"].apply(lambda x:"\n".join(x))
+    entry_df.insert(loc=1, column="vol_entry_num", value=np.arange(len(entry_df)))
 
     return entry_df
 
@@ -398,7 +370,7 @@ def save_poorly_scanned_pages(poorly_scanned, out_path):
             f.write(scan + "\n")
 
 
-def generate_xml(lines: list[str],
+def generate_xml(lines: list[str],  # TODO update to work with df output
                  title_indices: list[list[int]],
                  title_refs: list[str]) -> minidom.Document:
     """
@@ -411,6 +383,7 @@ def generate_xml(lines: list[str],
     xml = minidom.Document()
     text = xml.createElement('text')
 
+    # TODO replace iteration through title indices with entries in rows of df
     for i, idx in tqdm(enumerate(title_indices[:-1]), total=len(title_indices) - 1):
         catalogue_indices = [x for x in range(idx[1], title_indices[i + 1][0])]
         full_title = "".join([lines[x] for x in idx])
@@ -478,7 +451,7 @@ def gen_title_refs(lines: list[str], title_indices: list[list[int]]) -> list[str
 
     for idx in title_indices:
         full_title = "".join([lines[x] for x in idx])
-        title_ref = find_title_shelfmark(full_title)
+        title_ref = find_shelfmark(full_title)
         title_refs.append(title_ref)
 
     return title_refs
