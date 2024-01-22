@@ -119,8 +119,8 @@ def extract_lines_for_vol(vol: dict[str: ET.Element]) -> tuple[list[str], pd.Dat
 # Regular expressions used to detect headings
 caps_regex = re.compile("[A-Z][A-Z](?!I)[A-Z]+")
 
-ig_regex = re.compile(r"(?<![A-Za-z0-9\n\-\u201C.])(I[ABC]|G)([\.,] ?[a-z0-9-]*)*(?=[.,])")
-c_num_regex = re.compile(r"(?<![A-Za-z0-9\n\-\u201C.])(?<=[( ])C([\.,] ?[a-z0-9-]*)*(?=[.,][ )])")
+ig_regex = re.compile(r"(?<![A-Za-z0-9\n\-\u201C.])(I[ABC]|G)([\.,] ?[a-z0-9-]+)+(?=[.,]|\Z)")
+c_num_regex = re.compile(r"(?<![A-Za-z0-9\n\-\u201C.])(?<=[( ])C([\.,] ?[a-z0-9-]+)+(?=[.,][ )]|\Z)")
 
 one_num_regex = re.compile(r"1\.\s[a-z]")
 date_regex = re.compile("1[45][0-9][0-9]")
