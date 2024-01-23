@@ -158,32 +158,31 @@ def find_headings(lines: list[str]) -> tuple[list[str], list[list[int]]]:
     :param lines: list[str]
     :return: tuple[list[str], list[list[int]]
     """
-    titles = []  # The names of the titles
+    sm_titles = []  # The names of the titles
     title_indices = []
 
     # TODO include the first catalogue entry as well
     for i, l in enumerate(lines):
-        if find_shelfmark(l):
+        sm = find_shelfmark(l)
+        if sm:
             title = l
             title_index = [i]
             j = 1
             while i + j < len(lines) and j < 8:
                 title_part = lines[i + j]
                 if find_shelfmark(title_part):  # If a new catalogue entry begins during the current title
-                    j = 1
                     break
 
-                title += title_part
+                title += " " + title_part
                 title_index.append(i + j)
                 j += 1
 
                 if date_check(title_part) and caps_regex.search(title):  # Date marks the end of a heading
-                    titles.append(title)
+                    sm_titles.append([sm, title])
                     title_indices.append(title_index)
-                    j = 1
                     break
 
-    title_shelfmarks = [find_shelfmark(t) for t in titles]
+    title_shelfmarks = [t[0] for t in sm_titles]
 
     return title_shelfmarks, title_indices
 
