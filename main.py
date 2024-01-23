@@ -13,8 +13,8 @@ if __name__ == '__main__':
 
         print("\nExtracting catalogue entries from xmls")
         lines, xml_track_df = xmle.extract_lines_for_vol(vol_xml_trees)
-        title_shelfmarks, title_indices = xmle.find_headings(lines)
-        entry_df = xmle.extract_catalogue_entries(lines, title_indices, title_shelfmarks, xml_track_df)
+        title_shelfmarks, title_indices, ordered_lines = xmle.find_headings(lines)
+        entry_df = xmle.extract_catalogue_entries(ordered_lines, title_indices, title_shelfmarks, xml_track_df)
         print(f"Extracted {len(entry_df)} entries")
 
         out_path = f"data\\processed\\BMC_{i}"
@@ -22,7 +22,7 @@ if __name__ == '__main__':
         if not os.path.exists(out_path):
             os.makedirs(out_path)
 
-        entry_df.to_csv(os.path.join(out_path, "catalogue_entries_sm_refactor.csv"), index=False)
+        entry_df.to_csv(os.path.join(out_path, "catalogue_entries_bought_in.csv"), index=False)
 
         # xmle.save_poorly_scanned_pages(xmle.get_poorly_scanned_pages(current_volume, xmls), out_path)
         # print("Saving raw txt files")

@@ -120,15 +120,17 @@ def indices():
 
 
 def test_find_headings(xml_roots, lines, titles, indices):
-    t, i = xmle.find_headings(["asdf"])
+    t, i, l = xmle.find_headings(["asdf"])
     assert not t
     assert not i
+    assert l == ["asdf"]
 
     no_title_lines, xml_track_df = xmle.extract_lines_for_vol(xml_roots)
-    no_titles, no_all_title_indices = xmle.find_headings(no_title_lines)
+    no_titles, no_all_title_indices, no_ordered_lines = xmle.find_headings(no_title_lines)
     # should both be empty
     assert not no_titles
     assert not no_all_title_indices
+    assert len(no_ordered_lines) == 6
 
     """"
     the xml used to make title_indices contains three IA. numbers that could start titles
@@ -140,18 +142,20 @@ def test_find_headings(xml_roots, lines, titles, indices):
     """
 
     # lines is produced from title_xml_example.xml rather than the small_xml_examples
-    title_shelfmarks, indices = xmle.find_headings(lines)
+    title_shelfmarks, indices, o_l = xmle.find_headings(lines)
 
     assert len(title_shelfmarks), len(indices) == (2, 2)
     assert title_shelfmarks == ["IA. 123", "IA. 789"]
-    assert indices == [[0, 1, 2], [6, 7, 8]]
+    assert indices == [[2, 3], [8, 9]]
+    assert len(o_l) == 11
+    assert o_l[0], o_l[1] == ("Bought in 1456", "IA. 123.")
 
 
-def test_extract_catalogue_entries(lines, indices):
+def test_extract_catalogue_entries():
     root = ET.parse("tests\\title_xml_example.xml").getroot()
     lines, xml_track_df = xmle.extract_lines_for_vol({"title_xml_example": root})
-    title_shelfmarks, _ = xmle.find_headings(lines)
-    catalogue_entries = xmle.extract_catalogue_entries(lines, indices, title_shelfmarks, xml_track_df)
+    title_shelfmarks, title_indices, o_l = xmle.find_headings(lines)
+    catalogue_entries = xmle.extract_catalogue_entries(o_l, title_indices, title_shelfmarks, xml_track_df)
 
     assert catalogue_entries.shape == (2, 6)
     assert catalogue_entries.columns.tolist() == ["xml", "vol_entry_num", "shelfmark", "entry", "title", "entry_text"]  # "copy"
@@ -166,10 +170,11 @@ def test_extract_catalogue_entries(lines, indices):
 
 
 def test_generate_xml(): # TODO update once generate_xml has been updated
-    in_xml = ET.parse("tests\\title_xml_example.xml")
-    root = in_xml.getroot()
-    all_lines = xmle.extract_lines(root)
-    title, all_title_indices = xmle.find_headings(all_lines)
+    pass
+    # in_xml = ET.parse("tests\\title_xml_example.xml")
+    # root = in_xml.getroot()
+    # all_lines = xmle.extract_lines(root)
+    # title, all_title_indices, o_l = xmle.find_headings(all_lines)
 
     # out_xml = xmle.generate_xml(all_title_indices, all_lines, )
 

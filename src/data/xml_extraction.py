@@ -1,6 +1,7 @@
 import os
 import re
 import glob
+from copy import copy
 from xml.dom import minidom
 from functools import partial
 import numpy as np
@@ -152,7 +153,7 @@ def _find_shelfmark(title: str, res: list[re.Pattern]) -> str | None:
 find_shelfmark = partial(_find_shelfmark, res=[ig_regex, c_num_regex])
 
 
-def find_headings(lines: list[str]) -> tuple[list[str], list[list[int]]]:
+def find_headings(lines: list[str]) -> tuple[list[str], list[list[int]], list[str]]:
     """
     Finds all headings from a list of lines
     :param lines: list[str]
@@ -160,31 +161,36 @@ def find_headings(lines: list[str]) -> tuple[list[str], list[list[int]]]:
     """
     sm_titles = []  # The names of the titles
     title_indices = []
-
+    ordered_lines = copy(lines)
     # TODO include the first catalogue entry as well
     for i, l in enumerate(lines):
         sm = find_shelfmark(l)
         if sm:
-            title = l
-            title_index = [i]
+            title = [l]
+            title_index = []
             j = 1
             while i + j < len(lines) and j < 8:
                 title_part = lines[i + j]
                 if find_shelfmark(title_part):  # If a new catalogue entry begins during the current title
                     break
 
-                title += " " + title_part
+                title.append(title_part)
                 title_index.append(i + j)
                 j += 1
 
-                if date_check(title_part) and caps_regex.search(title):  # Date marks the end of a heading
+                if date_check(title_part) and caps_regex.search(" ". join(title)):  # Date marks the end of a heading
                     sm_titles.append([sm, title])
-                    title_indices.append(title_index)
+                    if "Bought in" in title[1]:  # not .lower() - these "Bought in" should all be capitalised
+                        sm, bought_in = lines[i], lines[i+1]
+                        ordered_lines[i], ordered_lines[i+1] = bought_in, sm
+                        title_indices.append(title_index[1:])
+                    else:
+                        title_indices.append(title_index)
                     break
 
     title_shelfmarks = [t[0] for t in sm_titles]
 
-    return title_shelfmarks, title_indices
+    return title_shelfmarks, title_indices, ordered_lines
 
 
 def extract_catalogue_entries(lines: list[str],
@@ -197,7 +203,7 @@ def extract_catalogue_entries(lines: list[str],
     :param title_indices:
     :param title_shelfmarks:
     :param xml_track_df:
-    :return:
+    :return: pd.DataFrame
     """
     xmls = []
     shelfmarks = []
@@ -206,15 +212,15 @@ def extract_catalogue_entries(lines: list[str],
     for i, idx in enumerate(title_indices[:-1]):
         # take the idx[1] and title_indices[i+1] to exclude leading shelfmark and include trailing shelfmark
         # TODO fix this indexing for the first entry?
-        entry = lines[idx[1]: title_indices[i + 1][1]]
+        entry = lines[idx[0]: title_indices[i + 1][0]]
         entries.append(entry)
 
-        xmls.append(xml_track_df.loc[idx[1], "xml"])
+        xmls.append(xml_track_df.loc[idx[0], "xml"])
         shelfmarks.append(title_shelfmarks[i + 1])
 
-    last_entry = lines[title_indices[-1][1]: len(lines)]
+    last_entry = lines[title_indices[-1][0]: len(lines)]
     entries.append(last_entry)
-    xmls.append(xml_track_df.loc[title_indices[-1][1], "xml"])
+    xmls.append(xml_track_df.loc[title_indices[-1][0], "xml"])
     shelfmarks.append(find_shelfmark(" ".join(last_entry)))
 
     entry_df = pd.DataFrame(
