@@ -120,8 +120,22 @@ def extract_lines_for_vol(vol: dict[str: ET.Element]) -> tuple[list[str], pd.Dat
 # Regular expressions used to detect headings
 caps_regex = re.compile("[A-Z][A-Z](?!I)[A-Z]+")
 
-ig_re = re.compile(r"(?<![A-Za-z0-9\n\-\u201C.])(I[ABC]|G)([\.,] ?[a-z0-9-]+)+(?=[.,]|\Z)")
-c_re = re.compile(r"(?<![A-Za-z0-9\n\-\u201C.])(?<=[( ])C([\.,] ?[a-z0-9-]+)+(?=[.,][ )]|\Z)")
+ig_re = re.compile(r"""
+ (?<![A-Za-z0-9\n\-\u201C.])   # Ensure no writing precedes re, effectively only allow a space
+ (I[ABC]|G)                    # Start chars for procter number of Grenville sm
+ ([.,][ ]?[a-z0-9-/()A]+)+     # 1+ repeats of [\.,] ?[a-z0-9-]+ i.e. the characters in the sm
+ \**                           # allow trailing *
+ (?=[.,]|\Z)                   # lookahead for [\.,][ )] or end of string
+""", re.VERBOSE)
+
+c_re = re.compile(r"""
+ (?<![A-Za-z0-9\n\-\u201C.])   # Ensure no writing precedes re
+ (?<=[( ])                     # Preceded by space or ( 
+ C                             # C of a King Charles lib sm
+ ([.,][ ]?[a-z0-9-*]+)+        # 1+ repeats of [\.,] ?[a-z0-9-]+ i.e. the characters in the sm
+ ([. ]*[(][0-9. ]*[)])?        # allow followed by a bracketed sets of numbers
+ (?=[., )]|\Z)                 # lookahead for [\.,][ )] or end of string
+""", re.VERBOSE)
 
 one_num_regex = re.compile(r"1\.\s[a-z]")
 date_regex = re.compile("1[45][0-9][0-9]")
