@@ -69,8 +69,8 @@ def test_find_shelfmark():
     i_letter_sm = xmle.find_shelfmark("IC. a3.")
     preceding_letter_i_sm = xmle.find_shelfmark("ASDFIB. 1345.")
 
-    c_brackets_sm = xmle.find_shelfmark("(C.44.)")
-    c_space_sm = xmle.find_shelfmark(" C. 15632. ")
+    c_brackets_sm = xmle.find_shelfmark("(C.44.a.1).")
+    c_space_sm = xmle.find_shelfmark(" C. 15632.a.3 ")
     preceding_letter_c_sm = xmle.find_shelfmark("aC. 15632.")
 
     bad_lower = xmle.find_shelfmark("asdf")
@@ -81,8 +81,8 @@ def test_find_shelfmark():
     assert i_letter_sm == "IC. a3"
     assert preceding_letter_i_sm is None
 
-    assert c_brackets_sm == "C.44"
-    assert c_space_sm == "C. 15632"
+    assert c_brackets_sm == "C.44.a.1"
+    assert c_space_sm == "C. 15632.a.3"
     assert preceding_letter_c_sm is None
 
     assert not bad_lower

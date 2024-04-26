@@ -120,21 +120,33 @@ def extract_lines_for_vol(vol: dict[str: ET.Element]) -> tuple[list[str], pd.Dat
 # Regular expressions used to detect headings
 caps_regex = re.compile("[A-Z][A-Z](?!I)[A-Z]+")
 
-ig_re = re.compile(r"""
+i_re = re.compile(r"""
  (?<![A-Za-z0-9\n\-\u201C.])   # Ensure no writing precedes re, effectively only allow a space
- (I[ABC]|G)                    # Start chars for procter number of Grenville sm
- ([.,][ ]?[a-z0-9-/()A]+)+     # 1+ repeats of [\.,] ?[a-z0-9-]+ i.e. the characters in the sm
+ (?<![(])I[ABC]                # Start chars for procter number of Grenville sm
+ ([.,][ ]?[a-z0-9-/A]+)+       # 1+ repeats of [\.,] ?[a-z0-9-]+ i.e. the characters in the sm
  \**                           # allow trailing *
- (?=[.,]|\Z)                   # lookahead for [\.,][ )] or end of string
+ ([. ]*[(][0-9-., ]+[)])?      # allow followed by a bracketed sets of numbers
+ (?=[.,) ]|\Z)                 # lookahead for [\.,][ )] or end of string
+""", re.VERBOSE)
+
+g_re = re.compile(r"""
+ (?<![A-Za-z0-9\n\-\u201C.])   # Ensure no writing precedes re, effectively only allow a space
+ (?<=[( ])G                    # Start chars for procter number of Grenville sm
+ ([.,][ ]?[a-z0-9-/A]+)+       # 1+ repeats of [\.,] ?[a-z0-9-]+ i.e. the characters in the sm
+ \**                           # allow trailing *
+ ([. ]*[(][0-9-., ]+[)])?      # allow followed by a bracketed sets of numbers
+ (?=[.,) ]|\Z)                 # lookahead for [\.,][ )] or end of string
 """, re.VERBOSE)
 
 c_re = re.compile(r"""
  (?<![A-Za-z0-9\n\-\u201C.])   # Ensure no writing precedes re
  (?<=[( ])                     # Preceded by space or ( 
  C                             # C of a King Charles lib sm
- ([.,][ ]?[a-z0-9-*]+)+        # 1+ repeats of [\.,] ?[a-z0-9-]+ i.e. the characters in the sm
- ([. ]*[(][0-9. ]*[)])?        # allow followed by a bracketed sets of numbers
- (?=[., )]|\Z)                 # lookahead for [\.,][ )] or end of string
+ \.[ ]?[0-9]+                  # stop, optional space, 1+ number
+ \.[ ]?[a-z]+                  # stop, optional space, 1+ letter
+ ([.,][ ]?[0-9-*]+)+           # 1+ (stop/comma, optional space, 1+ number)  
+ ([. ]*[(][0-9. ]+[)])?        # allow followed by a bracketed sets of numbers
+ (?=[ )]|\Z)                   # lookahead for [ )] or end of string
 """, re.VERBOSE)
 
 one_num_regex = re.compile(r"1\.\s[a-z]")
@@ -164,7 +176,7 @@ def _find_shelfmark(title: str, res: list[re.Pattern]) -> str | None:
         if re.search(title):
             return re.search(title).group()
 
-find_shelfmark = partial(_find_shelfmark, res=[ig_re, c_re])
+find_shelfmark = partial(_find_shelfmark, res=[i_re, g_re, c_re])
 
 
 def find_headings(lines: list[str]) -> tuple[list[str], list[list[int]], list[str]]:
