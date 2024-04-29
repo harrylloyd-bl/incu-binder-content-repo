@@ -11,41 +11,36 @@ from tqdm import tqdm
 from xml.etree import ElementTree as ET
 
 
-def gen_2_4_col_xml_paths(two_col_loc: str|os.PathLike, four_col_loc: str|os.PathLike) -> (list[str], list[str]):
+def gen_xml_paths(path: str|os.PathLike) -> list[str]:
     """
-    Collect and all the 2 col and 4 col xmls from a network root
+    Collect xmls from a path
+    Retries needed as this was originally on a network path that failed occasionally
     :param two_col_loc: str : A location of two column transkribus model output xmls
     :param four_col_loc: str: A location of four column transkribus model output xmls
     :return: list[str], list[str]
     """
-    page_xml_loc_2 = os.path.join(two_col_loc, "*.pxml")
-    page_xml_loc_4 = os.path.join(four_col_loc, "*.pxml")
 
     attempts = 0
     while attempts < 3:
-        xmls_2 = glob.glob(page_xml_loc_2)
-        xmls_4 = glob.glob(page_xml_loc_4)
-
-        if xmls_2 and xmls_4:
+        xmls = glob.glob(path)
+        if xmls:
             break
         else:
             attempts += 1
             continue
     else:
-        raise IOError(
-            f"Failed to connect to {os.path.dirname(page_xml_loc_2)}  {os.path.basename(page_xml_loc_2)}/{os.path.basename(page_xml_loc_4)}")
+        raise IOError(f"Failed to connect to {path}")
 
-    return xmls_2, xmls_4
+    return xmls
 
 
-def gen_2_4_col_xml_trees(two_col_xmls: list[str], four_col_xmls: list[str]) -> dict[str: ET.ElementTree]:  # TODO add correct return type hint
+def gen_xml_trees(xmls: list[str]) -> dict[str: ET.ElementTree]:
     """
     Collect and correctly sort all the 2 col and 4 col xmls from a network root
     :param two_col_xmls: str : A location of two column transkribus model output xmls
     :param four_col_xmls: str: A location of four column transkribus model output xmls
     :return: dict[xml.etree.ET]
     """
-    xmls = two_col_xmls + four_col_xmls
     xmls_sorted = sorted(xmls, key=lambda x: int(x[-9:-5]))
     xmlroots = {}
 
@@ -78,7 +73,15 @@ def extract_lines(root: ET.Element) -> list[str]:
 
     text_regions = [x for x in root[1] if len(x) > 2]  # Empty Text Regions Removed
 
-    if len(text_regions) % 2 == 0:  # TODO really understand why this is necessary # this would be a very good point to have one of those comments that explains a design decision
+    """"
+    Tkb assigns reading order top to bottom then left to right
+    RA/ID split Tkb pages into 2 or 4 'columns' - i.e. text regions
+    2 column pages have 2 columns side by side, reading order is left col, right col 
+    4 column pages have 2 columns at the top, a middle block of publisher text, then 2 cols at the bottom
+    I.e. not 4 cols side by side, but 2 cols split horizontally and read top left, top right, bottom left, bottom right
+    This code assumes initial reading order is TL, BL, TR, BR and changes to correct reading order 
+    """
+    if len(text_regions) % 2 == 0:
         half = int(len(text_regions) / 2)
         new_text_regions = []
         for x in range(half):

@@ -19,16 +19,16 @@ def xml_roots():
     return {k: xml_roots[k] for k in sorted(xml_roots)}
 
 
-def test_gen_2_4_col_xml_paths():
-    xmls = xmle.gen_2_4_col_xml_paths("tests\\BMC_3_2", "tests\\BMC_3_4")
-    assert xmls[0] == ["tests\\BMC_3_2\\J_2704_aa_30_3_0052.pxml"]
-    assert xmls[1] == ["tests\\BMC_3_4\\J_2704_aa_30_3_0053.pxml"]
+def test_gen_xml_paths():
+    xmls_2, xmls_4 = xmle.gen_xml_paths("tests\\BMC_3_2\\*.pxml"), xmle.gen_xml_paths("tests\\BMC_3_4\\*.pxml")
+    assert xmls_2[0] == "tests\\BMC_3_2\\J_2704_aa_30_3_0052.pxml"
+    assert xmls_4[0] == "tests\\BMC_3_4\\J_2704_aa_30_3_0053.pxml"
 
 
-def test_gen_2_4_col_xml_trees():
+def test_gen_xml_trees():
     xml_2 = ["tests\\BMC_3_2\\J_2704_aa_30_3_0052.pxml"]
     xml_4 = ["tests\\BMC_3_4\\J_2704_aa_30_3_0053.pxml"]
-    roots = xmle.gen_2_4_col_xml_trees(xml_2, xml_4)
+    roots = xmle.gen_xml_trees(xml_2 + xml_4)
     assert len(roots) == 2
     assert list(roots.keys()) == ["J_2704_aa_30_3_0052_2", "J_2704_aa_30_3_0053_4"]
     assert type(roots["J_2704_aa_30_3_0052_2"]) == ET.Element
