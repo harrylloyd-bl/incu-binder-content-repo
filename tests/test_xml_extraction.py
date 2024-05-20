@@ -3,6 +3,7 @@ from xml.etree import ElementTree as ET
 import os
 import glob
 import pytest
+from numpy import nan, array_equal
 from tqdm import tqdm
 from functools import partialmethod
 
@@ -100,7 +101,7 @@ def test_date_check():
 
 
 # separate so easier to see their values in tests
-fix_in_xml = ET.parse("tests\\title_xml_example.xml")
+fix_in_xml = ET.parse("tests\\title_xml_example_1.xml")
 fix_root = fix_in_xml.getroot()
 fix_lines = xmle.extract_lines(fix_root)
 fix_titles, fix_title_indices = ["IA. 123.TITLE1456", "IA. 789.SECONDTITLE1506"], [[0, 1, 2], [6, 7, 8]]
@@ -141,37 +142,48 @@ def test_find_headings(xml_roots, lines, titles, indices):
     section of find_headings 
     """
 
-    # lines is produced from title_xml_example.xml rather than the small_xml_examples
+    # lines is produced from title_xml_example_1.xml rather than the small_xml_examples
     title_shelfmarks, indices, o_l = xmle.find_headings(lines)
 
     assert len(title_shelfmarks), len(indices) == (2, 2)
     assert title_shelfmarks == ["IA. 123", "IA. 789"]
     assert indices == [[2, 3], [8, 9]]
-    assert len(o_l) == 11
-    assert o_l[0], o_l[1] == ("Bought in 1456", "IA. 123.")
+    assert len(o_l) == 13
+    assert (o_l[0], o_l[1], o_l[-1]) == ("Bought in 1456", "IA. 123.", "some line text")
 
 
 def test_extract_catalogue_entries():
-    root = ET.parse("tests\\title_xml_example.xml").getroot()
-    lines, xml_track_df = xmle.extract_lines_for_vol({"title_xml_example": root})
+    root_1 = ET.parse("tests\\title_xml_example_1.xml").getroot()
+    lines, xml_track_df = xmle.extract_lines_for_vol({"title_xml_example_1": root_1})
     title_shelfmarks, title_indices, o_l = xmle.find_headings(lines)
     catalogue_entries = xmle.extract_catalogue_entries(o_l, title_indices, title_shelfmarks, xml_track_df)
 
-    assert catalogue_entries.shape == (2, 6)
-    assert catalogue_entries.columns.tolist() == ["xml", "vol_entry_num", "shelfmark", "entry", "title", "entry_text"]  # "copy"
-    assert catalogue_entries["xml"].tolist() == ["title_xml_example", "title_xml_example"]
+    assert catalogue_entries.shape == (2, 8)
+    assert catalogue_entries.columns.tolist() == ["xmls", "xml_start_line", "vol_entry_num", "shelfmark", "entry", "title", "entry_text", "word_locations"]  # "copy"
+    assert catalogue_entries["xmls"].tolist() == [["title_xml_example_1"], ["title_xml_example_1"]]
+    assert catalogue_entries["xml_start_line"].to_list() == [[6], [5]]
     assert catalogue_entries["shelfmark"].tolist() == ["IA. 789", "IA. 353"]
     # assert catalogue_entries["copy"].sum() == catalogue_entries.shape[0]
-    assert catalogue_entries["entry"].transform(len).tolist() == [6, 3]
+    assert catalogue_entries["entry"].transform(len).tolist() == [6, 5]
     assert catalogue_entries.loc[0, "entry"][0] == "TITLE"
     assert catalogue_entries.loc[0, "entry"][-1] == "IA. 789."
     assert catalogue_entries.loc[1, "entry"][0] == "SECONDTITLE"
-    assert catalogue_entries.loc[1, "entry"][-1] == "IA. 353."
+    assert catalogue_entries.loc[1, "entry"][-1] == "some line text"
+
+    # entries across xmls
+    root_2 = ET.parse("tests\\title_xml_example_2.xml").getroot()
+    lines, xml_track_df = xmle.extract_lines_for_vol({"title_xml_example_1": root_1, "title_xml_example_2": root_2})
+    title_shelfmarks, title_indices, o_l = xmle.find_headings(lines)
+    catalogue_entries = xmle.extract_catalogue_entries(o_l, title_indices, title_shelfmarks, xml_track_df)
+
+    assert catalogue_entries.shape == (3, 8)
+    assert catalogue_entries["xmls"].tolist() == [["title_xml_example_1"], ["title_xml_example_1"], ["title_xml_example_1", "title_xml_example_2"]]
+    assert catalogue_entries["xml_start_line"].to_list() == [[6], [3], [2, 4]]
 
 
 def test_generate_xml(): # TODO update once generate_xml has been updated
     pass
-    # in_xml = ET.parse("tests\\title_xml_example.xml")
+    # in_xml = ET.parse("tests\\title_xml_example_1.xml")
     # root = in_xml.getroot()
     # all_lines = xmle.extract_lines(root)
     # title, all_title_indices, o_l = xmle.find_headings(all_lines)

@@ -11,12 +11,11 @@ from tqdm import tqdm
 from xml.etree import ElementTree as ET
 
 
-def gen_xml_paths(path: str|os.PathLike) -> list[str]:
+def gen_xml_paths(path: str | os.PathLike) -> list[str]:
     """
     Collect xmls from a path
     Retries needed as this was originally on a network path that failed occasionally
-    :param two_col_loc: str : A location of two column transkribus model output xmls
-    :param four_col_loc: str: A location of four column transkribus model output xmls
+    :param path: str : A location of transkribus model output xmls
     :return: list[str], list[str]
     """
 
@@ -37,11 +36,10 @@ def gen_xml_paths(path: str|os.PathLike) -> list[str]:
 def gen_xml_trees(xmls: list[str]) -> dict[str: ET.ElementTree]:
     """
     Collect and correctly sort all the 2 col and 4 col xmls from a network root
-    :param two_col_xmls: str : A location of two column transkribus model output xmls
-    :param four_col_xmls: str: A location of four column transkribus model output xmls
+    :param xmls: str : A list of locations of transkribus model output xmls
     :return: dict[xml.etree.ET]
     """
-    xmls_sorted = sorted(xmls, key=lambda x: int(x[-9:-5]))
+    xmls_sorted = sorted(xmls, key=lambda x: int(x.split("_")[-1].split(".")[0]))
     xmlroots = {}
 
     for xml in tqdm(xmls_sorted):
@@ -56,14 +54,18 @@ def gen_xml_trees(xmls: list[str]) -> dict[str: ET.ElementTree]:
         else:
             raise FileNotFoundError(f"Failed to connect to: {xml}")
         root = tree.getroot()
-        p = re.compile(r"BMC_\d_[24]")
+        p = re.compile(r"BMC_\d{1,2}_[24]")
         n_cols = p.search(xml).group()[-1]
         xmlroots[os.path.basename(xml)[:-5] + f"_{n_cols}"] = root  # take the label that spans different sections of a volume
 
     return xmlroots
 
 
-def extract_lines(root: ET.Element) -> list[str]:
+class TextLine(str):
+    points = None
+
+
+def extract_lines(root: ET.Element) -> list[TextLine]:
     """
     Extract the text lines from a page xml
     :param root: ET.Element: an xml root
@@ -92,7 +94,11 @@ def extract_lines(root: ET.Element) -> list[str]:
     for text_region in text_regions:
         text_lines = text_region[1:-1]  # Skip coordinate data in first child
         for text_line in text_lines:
-            lines.append(text_line[-1][0].text)  # Text equivalent for line
+            points = [x[0].attrib['points'].split(" ")[::2] for x in text_line[2:-1]]  # only need 0th and 2nd
+            points = [[(int(p.split(",")[0]), int(p.split(",")[1])) for p in line_points] for line_points in points]
+            line = TextLine(text_line[-1][0].text)
+            line.points = points
+            lines.append(line)
 
     return [x for x in lines if x is not None]
 
@@ -100,8 +106,7 @@ def extract_lines(root: ET.Element) -> list[str]:
 def extract_lines_for_vol(vol: dict[str: ET.Element]) -> tuple[list[str], pd.DataFrame]:
     """
     Extract lines for a dict of xml roots
-    :param vol:
-    :param remove_null:
+    :param vol: a dict of xml paths and corresponding ET roots
     :return:
     """
     lines = []
@@ -179,6 +184,7 @@ def _find_shelfmark(title: str, res: list[re.Pattern]) -> str | None:
         if re.search(title):
             return re.search(title).group()
 
+
 find_shelfmark = partial(_find_shelfmark, res=[i_re, g_re, c_re])
 
 
@@ -235,6 +241,7 @@ def extract_catalogue_entries(lines: list[str],
     :return: pd.DataFrame
     """
     xmls = []
+    xml_start_line = []
     shelfmarks = []
     entries = []
 
@@ -243,21 +250,35 @@ def extract_catalogue_entries(lines: list[str],
         # TODO fix this indexing for the first entry?
         entry = lines[idx[0]: title_indices[i + 1][0]]
         entries.append(entry)
-
-        xmls.append(xml_track_df.loc[idx[0], "xml"])
+        xml_info = xml_track_df.loc[idx[0]: title_indices[i + 1][0]].groupby(by="xml").count()
+        if xml_info.shape[0] == 1:
+            xmls.append([xml_info.index[0]])
+            xml_start_line.append([len(entry)])
+        else:
+            xmls.append(xml_info.index.to_list())
+            xml_start_line.append(xml_info["line"].cumsum().to_list())
         shelfmarks.append(title_shelfmarks[i + 1])
 
-    last_entry = lines[title_indices[-1][0]: len(lines)]
+    # naively goes from last title to end of text to create last entry
+    last_entry_start = title_indices[-1][0]
+    last_entry = lines[last_entry_start:]
     entries.append(last_entry)
-    xmls.append(xml_track_df.loc[title_indices[-1][0], "xml"])
+    xml_info = xml_track_df.loc[last_entry_start:].groupby(by="xml").count()
+    if xml_info.shape[0] == 1:
+        xmls.append([xml_info.index[0]])
+        xml_start_line.append([len(last_entry)])
+    else:
+        xmls.append(xml_info.index.to_list())
+        xml_start_line.append(xml_info["line"].cumsum().to_list())
     shelfmarks.append(find_shelfmark(" ".join(last_entry)))
 
     entry_df = pd.DataFrame(
-        data={"xml": xmls, "shelfmark": shelfmarks, # "copy": 1,
+        data={"xmls": xmls, "xml_start_line": xml_start_line, "shelfmark": shelfmarks, # "copy": 1,
               "entry": entries, "title": title_indices}
     )
     entry_df["entry_text"] = entry_df["entry"].apply(lambda x:"\n".join(x))
-    entry_df.insert(loc=1, column="vol_entry_num", value=np.arange(len(entry_df)))
+    entry_df.insert(loc=2, column="vol_entry_num", value=np.arange(len(entry_df)))
+    entry_df["word_locations"] = entry_df["entry"].apply(lambda x: [y.points for y in x])
 
     return entry_df
 
