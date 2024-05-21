@@ -12,3 +12,6 @@
 
 # tkb credentials
 notebooks/Transkribus_credential.py
+
+#pycache
+__pycache__/
