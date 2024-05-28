@@ -43,7 +43,7 @@ def display_entry(df_row):
     vols = [xml.split("_")[-3] for xml in xmls]
     cols = [xml[-1] for xml in xmls]
     jpgs = [xml[:-2] for xml in xmls]
-    image_paths = [glob.glob(f"..\\data\\raw\\BMC_{vol}_{col}\\*\\{jpg}.jpg")[0] for vol, col, jpg in
+    image_paths = [glob.glob(f"../data/raw/BMC_{vol}_{col}/*/{jpg}.jpg")[0] for vol, col, jpg in
                    zip(vols, cols, jpgs)]
 
     # get an image
@@ -83,7 +83,7 @@ def display_page(page, page_entry_lookup):
     vol = xml.split("_")[-3]
     col = xml[-1]
     jpg = xml[:-2]
-    path = glob.glob(f"..\\data\\raw\\BMC_{vol}_{col}\\*\\{jpg}.jpg")[0]
+    path = glob.glob(f"../data/raw/BMC_{vol}_{col}/*/{jpg}.jpg")[0]
 
     with Image.open(path).convert("RGBA") as base:
 
