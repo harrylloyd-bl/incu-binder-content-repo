@@ -2,7 +2,7 @@
 
 This is the Hack N' Yack content repo branch for Incunabula Catalogue Entry Detection at DHNB 05/24. The binder link is in the env repository here but the button is reproduced below:
 
-[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/britishlibrary/Incunabula-Catalogue-Entry-Detection/DHNB-0524?urlpath=git-pull%3Frepo%3Dhttps%253A%252F%252Fgithub.com%252Fharrylloyd-bl%252Fincu-binder-content-repo%26urlpath%3Dlab%252Ftree%252Fincu-binder-content-repo%252FCatalogues%2Bas%2BData%2Bfor%2BComputational%2BAnalysis%2B-%2BDHNB%2B2024.ipynb%26branch%3Ddhnb-0524)
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/britishlibrary/Incunabula-Catalogue-Entry-Detection/dhnb-0524?urlpath=git-pull%3Frepo%3Dhttps%253A%252F%252Fgithub.com%252Fharrylloyd-bl%252Fincu-binder-content-repo%26urlpath%3Dlab%252Ftree%252Fincu-binder-content-repo%252FCatalogues%2Bas%2BData%2Bfor%2BComputational%2BAnalysis%2B-%2BDHNB%2B2024.ipynb%26branch%3Ddhnb-0524)
 
 This project investigates and implements different methods for detecting catalogue entries within printed catalogues. While printed catalogues are easy enough to digitise and convert into machine readable data, dividing that data by catalogue entry requires converting visual signifiers of divisions between entries - gaps in the printed page, large or upper-case headers, catalogue references - into machine-readable information.
 
