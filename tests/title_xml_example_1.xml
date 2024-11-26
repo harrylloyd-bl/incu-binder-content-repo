@@ -91,6 +91,20 @@
                     <Unicode>IA. 353.</Unicode>
                 </TextEquiv>
             </TextLine>
+                        <TextLine id="TextLine11" custom="readingOrder {index:0;}">
+                <Coords points="357,652 1801,641 1801,578 357,558"/>
+                <Baseline points="367,631 427,627 487,627 547,623 607,619 667,619 727,619 787,623 847,619 907,619 967,619 1027,619 1087,623 1147,627 1207,627 1267,627 1327,627 1387,627 1447,627 1507,627 1567,631 1627,631 1687,631 1747,631 1803,635"/>
+                <TextEquiv>
+                    <Unicode>SECONDTITLE</Unicode>
+                </TextEquiv>
+            </TextLine>
+            <TextLine id="TextLine12" custom="readingOrder {index:0;}">
+                <Coords points="357,652 1801,641 1801,578 357,558"/>
+                <Baseline points="367,631 427,627 487,627 547,623 607,619 667,619 727,619 787,623 847,619 907,619 967,619 1027,619 1087,623 1147,627 1207,627 1267,627 1327,627 1387,627 1447,627 1507,627 1567,631 1627,631 1687,631 1747,631 1803,635"/>
+                <TextEquiv>
+                    <Unicode>some line text</Unicode>
+                </TextEquiv>
+            </TextLine>
             <TextEquiv>
                 <Unicode></Unicode>
             </TextEquiv>
